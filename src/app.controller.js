@@ -1,6 +1,7 @@
 import cookieParser from "cookie-parser"
 import connectDb from "./DB/connectDB.js"
 import globalErrorHandler from "./Utlis/errorHandler.utlis.js"
+import authRouter from "./Modules/auth/auth.controller.js"
 
 const bootStrap = async (app, express) => {
     app.use(express.json())
@@ -8,7 +9,7 @@ const bootStrap = async (app, express) => {
 
 
 
-
+    app.use("/api/auth", authRouter)
 
     app.use(cookieParser());
 
