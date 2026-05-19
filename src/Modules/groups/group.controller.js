@@ -1,0 +1,46 @@
+import express from "express";
+import * as groupService from "./group.service.js";
+import { validation } from "../../Middelwares/validation.middelwares.js";
+import {
+  createGroupValidation,
+  joinGroupValidation,
+} from "./group.validation.js";
+
+const router = express.Router();
+
+router.post(
+  "/createGroup",
+  validation(createGroupValidation),
+  groupService.createGroup,
+);
+
+router.post(
+  "/joinGroup",
+  validation(joinGroupValidation),
+  groupService.joinGroup,
+);
+router.get(
+  "/teacherViewPendingRequest",
+  groupService.teacherViewPendingRequest,
+);
+router.get(
+  "/teacherViewRejectedRequest",
+  groupService.teacherViewRejectedRequest,
+);
+router.post(
+  "/teacherAcceptRejectRequest",
+  validation(teacherAcceptRejectRequestValidation),
+  groupService.teacherAcceptRejectRequest,
+);
+router.post(
+  "/acceptRejectedStudent",
+  validation(acceptRejectedStudentValidation),
+  groupService.acceptrejectedStudents,
+);
+router.post(
+  "/addStudentToGroup",
+  validation(addStudentToGroupValidation),
+  groupService.addStudentToGroup,
+);
+
+export default router;
