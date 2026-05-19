@@ -20,11 +20,11 @@ export const sendOtpSchema = Joi.object({
 
 export const verifyOtpSchema = Joi.object({
   email: Joi.string().email().required(),
-  code: Joi.number().max(6).required(),
+  code: Joi.string().length(6).required(),
 });
 
 export const resetPasswordSchema = Joi.object({
   email: Joi.string().email().required(),
-  code: Joi.number().max(6).required(),
+  code: Joi.string().length(6).required(),
   password: Joi.string().min(6).required(),
 });

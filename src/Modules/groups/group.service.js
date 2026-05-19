@@ -1,6 +1,6 @@
-import Group from "../../DB/model/groups.model.js";
-import { RandomString } from "../../Utlis/generateOtp";
-import { successResponse } from "../../Utlis/shared";
+import Group from "../../DB/model/group.model.js";
+import { RandomString } from "../../Utlis/generateOtp.js";
+import successResponse from "../../Utlis/successRespone.utlis.js";
 
 export const createGroup = async (req, res, next) => {
   const { groupName, subject } = req.body;

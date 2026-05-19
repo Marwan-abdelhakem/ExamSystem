@@ -4,6 +4,9 @@ import { validation } from "../../Middelwares/validation.middelwares.js";
 import {
   createGroupValidation,
   joinGroupValidation,
+  teacherAcceptRejectRequestValidation,
+  acceptRejectedStudentValidation,
+  addStudentToGroupValidation,
 } from "./group.validation.js";
 
 const router = express.Router();

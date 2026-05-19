@@ -4,7 +4,7 @@ import { signToken } from "../../Utlis/token.utlis.js";
 import successResponse from "../../Utlis/successRespone.utlis.js";
 import uploadToCloudinary from "../../Utlis/cloudinary.utlis.js";
 import { checkCertificateWithAI } from "../../Utlis/checkCertificateWithAI.utlis.js";
-import { sendCode } from "../../Utlis/sendEmail.utlis.js";
+import { sendEmail } from "../../Utlis/sendEmail.js";
 import { RandomString } from "../../Utlis/generateOtp.js";
 
 export const signUp = async (req, res, next) => {
@@ -41,8 +41,10 @@ export const signUp = async (req, res, next) => {
     }
   }
 
+  const otp = RandomString(6);
+  const otpExpiry = Date.now() + 15 * 60 * 1000;
+
   const createUser = await UserModel.create({
-    success: true,
     role,
     name,
     password: hashedPassword,
@@ -50,8 +52,16 @@ export const signUp = async (req, res, next) => {
     subjects_taught,
     educational_level,
     qualification: fileUrl,
-    educational_level,
+    otp: {
+      code: otp,
+      expiry_date: otpExpiry,
+      last_sent_at: Date.now(),
+      attempts: 0,
+      verified: false,
+    },
   });
+
+  await sendEmail(email, otp);
 
   return successResponse({
     res,
@@ -81,6 +91,10 @@ export const login = async (req, res, next) => {
 
     if (!isPasswordValid) {
       return res.status(401).json({ message: "Invalid email or password" });
+    }
+
+    if (!user.otp || !user.otp.verified) {
+      return res.status(400).json({ message: "Please verify your email first" });
     }
 
     const token = signToken({
@@ -134,10 +148,10 @@ export const sendOtp = async (req, res, next) => {
   };
 
   await user.save();
-  await sendCode(otp, user.email);
+  await sendEmail(user.email, otp);
 
   return successResponse({
-    success: true,
+    res,
     statusCode: 200,
     message: "OTP sent successfully",
   });
@@ -169,34 +183,29 @@ export const verifyOtp = async (req, res, next) => {
     await user.save();
     return next(new Error("Invalid OTP", { cause: 400 }));
   }
-
+  user.otp.code = null;
   user.otp.verified = true;
   user.otp.attempts = 0;
+  user.otp.last_sent_at = null;
+  user.otp.expiry_date = null;
   await user.save();
 
   return successResponse({
-    success: true,
+    res,
     statusCode: 200,
     message: "OTP verified successfully",
   });
 };
 
 export const resetPassword = async (req, res, next) => {
-  const { email, code, password } = req.body;
+  const { email, password } = req.body;
 
   const user = await UserModel.findOne({ email });
 
   if (!user) return next(new Error("User not found", { cause: 404 }));
 
-  if (
-    !user.otp.verified ||
-    String(user.otp.code) !== String(code)
-  ) {
-    return next(new Error("OTP not verified or invalid", { cause: 400 }));
-  }
-
-  if (user.otp.expiry_date < Date.now()) {
-    return next(new Error("OTP expired", { cause: 400 }));
+  if (!user.otp.verified) {
+    return next(new Error("OTP not verified", { cause: 400 }));
   }
 
   user.password = await hashPassword({ plainText: password });
@@ -212,7 +221,7 @@ export const resetPassword = async (req, res, next) => {
   await user.save();
 
   return successResponse({
-    success: true,
+    res,
     statusCode: 200,
     message: "Password reset successfully",
   });
