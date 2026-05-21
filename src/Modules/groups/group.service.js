@@ -26,7 +26,7 @@ export const createGroup = async (req, res, next) => {
   });
 
   return successResponse({
-    success: true,
+    res,
     message: "Group Created Successfully",
     data: group,
   });
@@ -79,7 +79,7 @@ export const joinGroup = async (req, res, next) => {
   await group.save();
 
   return successResponse({
-    success: true,
+    res,
     message: "Group Join Request Sent",
     data: group,
   });
@@ -87,34 +87,36 @@ export const joinGroup = async (req, res, next) => {
 
 export const teacherViewPendingRequest = async (req, res, next) => {
   const teacher = req.user.id;
-  const groups = await Group.find({ teacher });
+  const groups = await Group.find({ teacher }).populate("pendingStudents");
   if (!groups) {
     return next(new Error("No Groups Found"));
   }
+  const pendingStudents = groups.reduce((acc, group) => acc.concat(group.pendingStudents), []);
   return successResponse({
-    success: true,
+    res,
     message: "Pending Requests",
-    data: groups.pendingStudents,
+    data: pendingStudents,
   });
 };
 
 export const teacherViewRejectedRequest = async (req, res, next) => {
   const teacher = req.user.id;
-  const groups = await Group.find({ teacher });
+  const groups = await Group.find({ teacher }).populate("rejectedStudents");
   if (!groups) {
     return next(new Error("No Groups Found"));
   }
   
+  const rejectedStudents = groups.reduce((acc, group) => acc.concat(group.rejectedStudents), []);
   return successResponse({
-    success: true,
+    res,
     message: "Rejected Requests",
-    data: groups.rejectedStudents,
+    data: rejectedStudents,
   });
 };
 
 export const teacherAcceptRejectRequest = async (req, res, next) => {
   const { requestId, action } = req.body;
-  const group = await Group.findOne({requestId});
+  const group = await Group.findOne({ pendingStudents: requestId });
   if (!group) {
     return next(new Error("Group Not Found"));
   }
@@ -132,7 +134,7 @@ export const teacherAcceptRejectRequest = async (req, res, next) => {
   }
   await group.save();
   return successResponse({
-    success: true,
+    res,
     message: "Request Processed",
     data: group,
   });
@@ -157,7 +159,7 @@ export  const acceptrejectedStudents = async (req, res, next) => {
   );
   await group.save();
   return successResponse({
-    success: true,
+    res,
     message: "Request Accepted",
     data: group,
   });
@@ -192,7 +194,7 @@ export const  addStudentToGroup = async (req, res, next) => {
   group.students.push(requestId);
   await group.save();
   return successResponse({
-    success: true,
+    res,
     message: "Request Accepted",
     data: group,
   });

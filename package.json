@@ -12,7 +12,7 @@
   "type": "module",
   "dependencies": {
     "@langchain/core": "^1.1.46",
-    "@langchain/openai": "^1.4.5",
+    "@langchain/openai": "^1.4.6",
     "bcryptjs": "^3.0.3",
     "cloudinary": "^2.9.0",
     "cookie-parser": "^1.4.7",
@@ -22,9 +22,11 @@
     "express": "^5.2.1",
     "joi": "^18.1.2",
     "jsonwebtoken": "^9.0.3",
+    "langchain": "^1.4.1",
     "mongoose": "^9.4.1",
     "multer": "^2.1.1",
     "nodemailer": "^8.0.7",
+    "openai": "^6.38.0",
     "streamifier": "^0.1.1"
   },
   "devDependencies": {
