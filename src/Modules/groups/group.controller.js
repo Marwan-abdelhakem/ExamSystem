@@ -49,4 +49,9 @@ router.post(
   groupService.addStudentToGroup,
 );
 
+router.get(
+  "/myGroups",
+  groupService.getMyGroups,
+);
+
 export default router;

@@ -199,3 +199,15 @@ export const  addStudentToGroup = async (req, res, next) => {
     data: group,
   });
 };
+
+export const getMyGroups = async (req, res, next) => {
+  const teacherId = req.user.id;
+  // Fetch groups where this user is the teacher
+  const groups = await Group.find({ teacher: teacherId });
+  
+  return successResponse({
+    res,
+    message: "Groups fetched successfully",
+    data: groups,
+  });
+};
