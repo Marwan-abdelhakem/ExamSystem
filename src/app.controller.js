@@ -4,6 +4,7 @@ import globalErrorHandler from "./Utlis/errorHandler.utlis.js"
 import authRouter from "./Modules/auth/auth.controller.js"
 import groupRouter from "./Modules/groups/group.controller.js"
 import examRouter from "./Modules/exam/exam.controller.js"
+import questionRouter from "./Modules/question/question.controller.js"
 import cors from "cors"
 
 
@@ -30,6 +31,7 @@ const bootStrap = async (app, express) => {
     app.use("/api/auth", authRouter)
     app.use("/api/group", groupRouter)
     app.use("/api/exam", examRouter)
+    app.use("/api/question", questionRouter)
 
     app.use(cookieParser());
 

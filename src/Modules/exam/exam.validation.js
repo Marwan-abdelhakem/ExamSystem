@@ -18,7 +18,34 @@ export const generateExamValidation = Joi.object({
         .required(),
 });
 
-
+export const generateExamManuallyValidation = Joi.object({
+    examDetails: Joi.object({
+        title: Joi.string().required(),
+        openingAt: Joi.number().required(),
+        closingAt: Joi.number().greater(Joi.ref("openingAt")).required(),
+        durationMinutes: Joi.number().min(1).required(),
+        accessCode: Joi.string().required(),
+        status: Joi.string().valid("Active", "Closed", "Hidden").required(),
+        teacherID: Joi.string().hex().length(24).required(),
+    }).required(),
+    questions: Joi.array()
+        .items(
+            Joi.object({
+                title: Joi.string().required(),
+                options: Joi.when("typeQue", {
+                    is: "MCQ",
+                    then: Joi.array().items(Joi.string()).length(4).required(),
+                    otherwise: Joi.array().length(0).required(),
+                }),
+                correctAnswer: Joi.string().required(),
+                difficulty: Joi.string().valid("easy", "medium", "hard").required(),
+                cognitiveLevel: Joi.string().valid("remember", "understand", "think").required(),
+                typeQue: Joi.string().valid("MCQ", "TF").required(),
+            })
+        )
+        .min(1)
+        .required(),
+});
 
 export const QuestionSchema = z.object({
     q_id: z.string(),

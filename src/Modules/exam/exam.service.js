@@ -5,6 +5,8 @@ import mongoose from "mongoose";
 import pdfParse from "pdf-parse-fork";
 import PDFChunk from "../../DB/model/pdfChunk.model.js";
 import QuestionModel from "../../DB/model/question.model.js";
+import ExamModel from "../../DB/model/exam.model.js";
+import GroupModel from "../../DB/model/group.model.js";
 
 /* =========================
    LLM & EMBEDDINGS
@@ -28,13 +30,13 @@ const embeddings = new OpenAIEmbeddings({
 
 const graphState = {
     channels: {
-    examId: { value: (x, y) => y ?? x, default: () => null },
-    pdfContext: { value: (x, y) => y ?? x, default: () => "" },
-    requestedRules: { value: (x, y) => y ?? x, default: () => [] },
-    draftedQuestions: { value: (x, y) => y ?? x, default: () => "" },
-    finalExam: { value: (x, y) => y ?? x, default: () => null },
-    reviewVerdict: { value: (x, y) => y ?? x, default: () => null },
-     reviewFeedback: { value: (x, y) => y ?? x, default: () => null },
+        examId: { value: (x, y) => y ?? x, default: () => null },
+        pdfContext: { value: (x, y) => y ?? x, default: () => "" },
+        requestedRules: { value: (x, y) => y ?? x, default: () => [] },
+        draftedQuestions: { value: (x, y) => y ?? x, default: () => "" },
+        finalExam: { value: (x, y) => y ?? x, default: () => null },
+        reviewVerdict: { value: (x, y) => y ?? x, default: () => null },
+        reviewFeedback: { value: (x, y) => y ?? x, default: () => null },
     },
 };
 
@@ -358,5 +360,90 @@ export const uploadPDF = async (req, res) => {
     } catch (error) {
         console.error("❌ Upload Failed:", error.message);
         return res.status(500).json({ success: false, error: error.message });
+    }
+};
+
+
+/* ==================================
+   SERVICE: GENERATE EXAM MANUALLY
+================================== */
+
+/*
+input data {
+
+POST /exam/generate-manually?groupId=68401234abcd5678ef901234
+
+{
+  "examDetails": {
+    "title": "Final Exam - JavaScript",
+    "openingAt": 1750000000,
+    "closingAt": 1750003600,
+    "durationMinutes": 60,
+    "accessCode": "JS2025",
+    "status": "Active",
+    "teacherID": "68401234abcd5678ef901111"
+  },
+  "questions": [
+    {
+      "title": "What does 'var' do in JavaScript?",
+      "options": ["Declares a variable", "Declares a function", "Imports a module", "None of the above"],
+      "correctAnswer": "Declares a variable",
+      "difficulty": "easy",
+      "cognitiveLevel": "remember",
+      "typeQue": "MCQ"
+    },
+    {
+      "title": "JavaScript is a compiled language.",
+      "options": [],
+      "correctAnswer": "False",
+      "difficulty": "easy",
+      "cognitiveLevel": "remember",
+      "typeQue": "TF"
+    }
+  ]
+}
+
+}
+
+*/
+
+export const generateExamManually = async (req, res, next) => {
+    const { examDetails, questions } = req.body;
+    const { groupId } = req.query;
+
+    if (!groupId) {
+        return next(new Error("Group ID is required"));
+    }
+
+    if (!groupId.match(/^[a-f\d]{24}$/i)) {
+        return next(new Error("Invalid Group ID format"));
+    }
+
+    const group = await GroupModel.findById(groupId);
+    if (!group) {
+        return next(new Error("Group Not Found"));
+    }
+    try {
+        const exam = await ExamModel.create({
+            ...examDetails,
+            numOfQuestion: questions.length,
+            groupID: groupId,
+        });
+        const preparedQuestions = questions.map((q) => ({
+            ...q,
+            examID: exam._id,
+        }));
+
+        const createdQuestions = await QuestionModel.insertMany(preparedQuestions);
+        return res.status(201).json({
+            success: true,
+            message: "Exam and Questions Created Successfully",
+            data: {
+                exam,
+                questions: createdQuestions,
+            },
+        });
+    } catch (error) {
+        return next(error);
     }
 };
