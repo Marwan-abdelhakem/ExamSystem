@@ -379,7 +379,6 @@ POST /exam/generate-manually?groupId=68401234abcd5678ef901234
     "openingAt": 1750000000,
     "closingAt": 1750003600,
     "durationMinutes": 60,
-    "accessCode": "JS2025",
     "status": "Active",
     "teacherID": "68401234abcd5678ef901111"
   },

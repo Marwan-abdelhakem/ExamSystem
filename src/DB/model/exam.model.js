@@ -18,10 +18,6 @@ const ExamSchema = new Schema(
             type: Number,
             required: true
         },
-        accessCode: {
-            type: String,
-            required: true
-        },
         status: {
             type: String,
             enum: ["Active", "Closed", "Hidden"]
