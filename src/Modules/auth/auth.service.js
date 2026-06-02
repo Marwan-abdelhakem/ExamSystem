@@ -94,7 +94,11 @@ export const login = async (req, res, next) => {
     }
 
     if (!user.otp || !user.otp.verified) {
-      return res.status(400).json({ message: "Please verify your email first" });
+      return res.status(403).json({
+        message: "Please verify your email first",
+        notVerified: true,
+        email: user.email,
+      });
     }
 
     const token = signToken({
