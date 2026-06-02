@@ -17,7 +17,7 @@ const QuestionSchema = new Schema(
         difficulty: {
             type: String,
             enum: ['easy', 'medium', 'hard'],
-            required: trueذ
+            required: true
         },
         cognitiveLevel: {
             type: String,
