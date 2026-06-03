@@ -121,11 +121,11 @@ export const login = async (req, res, next) => {
       expiresAt,
     });
 
-    // Send refresh token in httpOnly cookie (not accessible via JS)
+    // Send refresh token in httpOnly cookie — not accessible via JS (XSS safe)
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
+      sameSite: "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 
@@ -264,7 +264,6 @@ export const refreshToken = async (req, res, next) => {
   try {
     const decoded = verifyRefreshToken({ token });
 
-    // Check token exists in DB and not expired
     const storedToken = await RefreshTokenModel.findOne({
       token,
       userId: decoded.id,
@@ -280,7 +279,6 @@ export const refreshToken = async (req, res, next) => {
       return res.status(401).json({ message: "User not found" });
     }
 
-    // Issue new access token
     const newAccessToken = signToken({
       payload: { id: user._id, email: user.email },
     });
@@ -302,7 +300,7 @@ export const refreshToken = async (req, res, next) => {
     res.cookie("refreshToken", newRefreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
+      sameSite: "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
@@ -319,14 +317,13 @@ export const logout = async (req, res) => {
   const token = req.cookies?.refreshToken;
 
   if (token) {
-    // Remove from DB
     await RefreshTokenModel.deleteOne({ token });
   }
 
   res.clearCookie("refreshToken", {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
+    sameSite: "lax",
   });
 
   return res.status(200).json({ success: true, message: "Logged out successfully" });

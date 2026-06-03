@@ -8,7 +8,7 @@ import questionRouter from "./Modules/question/question.controller.js"
 import cors from "cors"
 
 
-const allowedOrigins = ["*", "http://localhost:5173"];
+const allowedOrigins = ["http://localhost:5173","http://localhost:5172", "http://localhost:3000"];
 
 const corsOptions = {
     origin: (origin, callback) => {

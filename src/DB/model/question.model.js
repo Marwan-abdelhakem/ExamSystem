@@ -32,6 +32,10 @@ const QuestionSchema = new Schema(
         typeQue: {
             type: String,
             enum: ["MCQ", "TF"]
+        },
+        ai_explanation: {
+            type: String,
+            default: null,
         }
     },
     {

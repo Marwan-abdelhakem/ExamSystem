@@ -80,6 +80,7 @@ English document → English output.
 French document → French output.
 
 Keep all technical and foreign terms exactly as written in the source document.
+
 `;
 
 /* =========================
@@ -291,17 +292,18 @@ export const generateExam = async (req, res) => {
         console.log("✅ Exam Generated Successfully");
 
         // Map difficulty & measures to DB enums
-        const difficultyMap = { Easy: "easy", Normal: "medium", Hard: "hard" };
-        const measuresMap = { Memorization: "remember", Creativity: "understand", Thinking: "think" };
+        const difficultyMap = { Easy: "Easy", Normal: "Normal", Hard: "Hard" };
+        const measuresMap = { Memorization: "Memorization", Creativity: "Creativity", Thinking: "Thinking" };
 
         const questionsToSave = finalState.finalExam.questions.map((q) => ({
             title: q.questionText,
             options: q.options ?? [],
             correctAnswer: q.correctAnswer,
-            difficulty: difficultyMap[q.difficulty] ?? "medium",
-            cognitiveLevel: measuresMap[q.measures] ?? "remember",
+            difficulty: difficultyMap[q.difficulty] ?? "Normal",
+            cognitiveLevel: measuresMap[q.measures] ?? "Memorization",
             examID: new mongoose.Types.ObjectId(examId),
             typeQue: q.type,
+            ai_explanation: q.ai_explanation ?? null,
         }));
 
         const savedQuestions = await QuestionModel.insertMany(questionsToSave);
@@ -440,6 +442,45 @@ export const generateExamManually = async (req, res, next) => {
             data: {
                 exam,
                 questions: createdQuestions,
+            },
+        });
+    } catch (error) {
+        return next(error);
+    }
+};
+
+export const publishAIExam = async (req, res, next) => {
+    const { examId, examDetails } = req.body;
+    const { groupId } = req.query;
+
+    if (!groupId) {
+        return next(new Error("Group ID is required"));
+    }
+
+    if (!groupId.match(/^[a-f\d]{24}$/i)) {
+        return next(new Error("Invalid Group ID format"));
+    }
+
+    const group = await GroupModel.findById(groupId);
+    if (!group) {
+        return next(new Error("Group Not Found"));
+    }
+
+    try {
+        const numOfQuestion = await QuestionModel.countDocuments({ examID: examId });
+
+        const exam = await ExamModel.create({
+            _id: examId,
+            ...examDetails,
+            numOfQuestion,
+            groupID: groupId,
+        });
+
+        return res.status(201).json({
+            success: true,
+            message: "AI Exam Published Successfully",
+            data: {
+                exam,
             },
         });
     } catch (error) {
