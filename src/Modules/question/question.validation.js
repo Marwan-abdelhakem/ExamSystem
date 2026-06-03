@@ -18,9 +18,9 @@ export const validateUpdateQuestion = Joi.object({
         return value;
     }).required(),
     title: Joi.string().optional(),
-    typeQue: Joi.string().enum(["MCQ", "TF"]).optional(),
-    difficulty: Joi.string().enum(["Easy", "Normal", "Hard"]).optional(),
-    cognitiveLevel: Joi.string().enum(["Memorization", "Creativity", "Thinking"]).optional(),
+    typeQue: Joi.string().valid("MCQ", "TF").optional(),
+    difficulty: Joi.string().valid("Easy", "Normal", "Hard").optional(),
+    cognitiveLevel: Joi.string().valid("Memorization", "Creativity", "Thinking").optional(),
     correctAnswer: Joi.string().optional(),
     options: Joi.array().items(Joi.string()).optional(),
 })

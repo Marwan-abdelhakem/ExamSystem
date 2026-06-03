@@ -11,4 +11,7 @@ router.post("/login", validation(loginValidation), authService.login);
 router.post("/send-otp", validation(sendOtpSchema), authService.sendOtp);
 router.post("/verify-otp", validation(verifyOtpSchema), authService.verifyOtp);
 router.post("/reset-password", validation(resetPasswordSchema), authService.resetPassword);
+router.post("/refresh-token", authService.refreshToken);
+router.post("/logout", authService.logout);
+
 export default router;

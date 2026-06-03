@@ -1,6 +1,7 @@
 import UserModel from "../../DB/model/user.model.js";
+import RefreshTokenModel from "../../DB/model/refreshToken.model.js";
 import { comparePassowrd, hashPassword } from "../../Utlis/hash.utlis.js";
-import { signToken } from "../../Utlis/token.utlis.js";
+import { signToken, signRefreshToken, verifyRefreshToken } from "../../Utlis/token.utlis.js";
 import successResponse from "../../Utlis/successRespone.utlis.js";
 import uploadToCloudinary from "../../Utlis/cloudinary.utlis.js";
 import { checkCertificateWithAI } from "../../Utlis/checkCertificateWithAI.utlis.js";
@@ -107,6 +108,27 @@ export const login = async (req, res, next) => {
         email: user.email,
       },
     });
+
+    const refreshToken = signRefreshToken({
+      payload: { id: user._id, email: user.email },
+    });
+
+    // Save refresh token in DB
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    await RefreshTokenModel.create({
+      token: refreshToken,
+      userId: user._id,
+      expiresAt,
+    });
+
+    // Send refresh token in httpOnly cookie (not accessible via JS)
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
     res.status(200).json({
       success: true,
       message: "Login successful",
@@ -114,6 +136,7 @@ export const login = async (req, res, next) => {
         _id: user._id,
         name: user.name,
         email: user.email,
+        role: user.role,
       },
       token,
     });
@@ -229,4 +252,82 @@ export const resetPassword = async (req, res, next) => {
     statusCode: 200,
     message: "Password reset successfully",
   });
+};
+
+export const refreshToken = async (req, res, next) => {
+  const token = req.cookies?.refreshToken;
+
+  if (!token) {
+    return res.status(401).json({ message: "No refresh token provided" });
+  }
+
+  try {
+    const decoded = verifyRefreshToken({ token });
+
+    // Check token exists in DB and not expired
+    const storedToken = await RefreshTokenModel.findOne({
+      token,
+      userId: decoded.id,
+      expiresAt: { $gt: new Date() },
+    });
+
+    if (!storedToken) {
+      return res.status(403).json({ message: "Refresh token revoked or expired" });
+    }
+
+    const user = await UserModel.findById(decoded.id);
+    if (!user) {
+      return res.status(401).json({ message: "User not found" });
+    }
+
+    // Issue new access token
+    const newAccessToken = signToken({
+      payload: { id: user._id, email: user.email },
+    });
+
+    // Rotate refresh token — delete old, save new
+    const newRefreshToken = signRefreshToken({
+      payload: { id: user._id, email: user.email },
+    });
+
+    await RefreshTokenModel.deleteOne({ token });
+
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    await RefreshTokenModel.create({
+      token: newRefreshToken,
+      userId: user._id,
+      expiresAt,
+    });
+
+    res.cookie("refreshToken", newRefreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    return res.status(200).json({
+      success: true,
+      token: newAccessToken,
+    });
+  } catch (error) {
+    return res.status(403).json({ message: "Invalid or expired refresh token" });
+  }
+};
+
+export const logout = async (req, res) => {
+  const token = req.cookies?.refreshToken;
+
+  if (token) {
+    // Remove from DB
+    await RefreshTokenModel.deleteOne({ token });
+  }
+
+  res.clearCookie("refreshToken", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+  });
+
+  return res.status(200).json({ success: true, message: "Logged out successfully" });
 };

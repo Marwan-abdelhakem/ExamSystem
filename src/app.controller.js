@@ -25,15 +25,13 @@ const bootStrap = async (app, express) => {
     app.use(express.json())
     await connectDb()
 
-
     app.use(cors(corsOptions));
+    app.use(cookieParser());
 
     app.use("/api/auth", authRouter)
     app.use("/api/group", groupRouter)
     app.use("/api/exam", examRouter)
     app.use("/api/question", questionRouter)
-
-    app.use(cookieParser());
 
     app.all("/*dummy", (req, res, next) => {
         return next(new Error("Not found Handler !!!!", { cause: 409 }))
