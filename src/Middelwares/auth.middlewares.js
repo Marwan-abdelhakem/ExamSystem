@@ -15,7 +15,8 @@ export const authentication = async (req, res, next) => {
 
     try {
         const decoded = verifyTokin({ token });
-        const user = await UserModel.findById(decoded._id);
+        const userId = decoded._id || decoded.id;
+        const user = await UserModel.findById(userId);
 
         if (!user) {
             return next(new Error("User Not Found", { cause: 404 }));

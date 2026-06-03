@@ -24,9 +24,8 @@ const corsOptions = {
 const bootStrap = async (app, express) => {
     app.use(express.json())
     await connectDb()
-
-    app.use(cors(corsOptions));
     app.use(cookieParser());
+    app.use(cors(corsOptions));
 
     app.use("/api/auth", authRouter)
     app.use("/api/group", groupRouter)

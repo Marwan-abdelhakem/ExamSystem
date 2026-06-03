@@ -1,6 +1,7 @@
 import express from "express";
 import * as groupService from "./group.service.js";
 import { validation } from "../../Middelwares/validation.middelwares.js";
+import { authentication } from "../../Middelwares/auth.middlewares.js";
 import {
   createGroupValidation,
   joinGroupValidation,
@@ -10,6 +11,8 @@ import {
 } from "./group.validation.js";
 
 const router = express.Router();
+
+router.use(authentication);
 
 router.post(
   "/createGroup",
@@ -44,6 +47,11 @@ router.post(
   "/addStudentToGroup",
   validation(addStudentToGroupValidation),
   groupService.addStudentToGroup,
+);
+
+router.get(
+  "/myGroups",
+  groupService.getMyGroups,
 );
 
 export default router;
