@@ -315,16 +315,23 @@ export const refreshToken = async (req, res, next) => {
 
 export const logout = async (req, res) => {
   const token = req.cookies?.refreshToken;
-
   if (token) {
-    await RefreshTokenModel.deleteOne({ token });
-  }
+    try {
+      await RefreshTokenModel.deleteOne({ token });
 
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
+  }
+  res.clearCookie("accessToken", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict"
+  });
   res.clearCookie("refreshToken", {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    sameSite: "strict"
   });
-
   return res.status(200).json({ success: true, message: "Logged out successfully" });
 };
