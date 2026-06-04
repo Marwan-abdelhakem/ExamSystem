@@ -63,12 +63,48 @@ export const publishAIExamValidation = Joi.object({
 export const QuestionSchema = z.object({
     q_id: z.string(),
     type: z.enum(["MCQ", "TF"]),
-    questionText: z.string(),
-    options: z.array(z.string()).nullable(),
+    questionText: z.string().min(5),
+    options: z.array(z.string()),
     correctAnswer: z.string(),
-    difficulty: z.enum(["Easy", "Normal", "Hard"]),
-    measures: z.enum(["Memorization", "Creativity", "Thinking"]),
-    ai_explanation: z.string(),
+    difficulty: z.enum(["Easy", "Normal", "Hard", "Manual"]),
+    measures: z.enum(["Memorization", "Creativity", "Thinking", "Manual"]),
+    ai_explanation: z.string().min(10),
+}).superRefine((question, ctx) => {
+    if (question.type === "MCQ") {
+        if (question.options.length !== 4) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "MCQ must contain exactly 4 options",
+            });
+        }
+        if (!question.options.includes(question.correctAnswer)) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "Correct answer must exist in options",
+            });
+        }
+    }
+
+    if (question.type === "TF") {
+        if (question.options.length > 0) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "TF questions cannot contain options",
+            });
+        }
+        if (!["True", "False"].includes(question.correctAnswer)) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "TF answer must be True or False",
+            });
+        }
+        if (question.questionText.trim().endsWith("?")) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "TF question must be a statement",
+            });
+        }
+    }
 });
 
 export const ExamSchema = z.object({

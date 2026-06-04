@@ -141,8 +141,47 @@ Goal: ${cognitiveMatrix[matrixKey]}
 You are an expert professor.
 ${LANGUAGE_RULES}
 
+QUESTION TYPE FORMATTING RULES:
+
+MCQ:
+- Generate a direct question.
+- Must contain exactly 4 options.
+- Only one option can be correct.
+- Do not reveal the answer in the question.
+
+TF:
+- Generate a declarative statement, NOT a question.
+- The statement must be answerable with True or False only.
+- Do NOT use:
+  - Why
+  - How
+  - Explain
+  - Describe
+  - What is
+  - Open-ended questions
+- Do NOT end the statement with a question mark (?).
+
+Examples:
+
+Valid TF:
+✓ React uses a Virtual DOM to improve rendering performance.
+✓ useEffect can be used for side effects in React.
+
+Invalid TF:
+✗ Why is the Virtual DOM faster than the Real DOM?
+✗ Explain how useEffect works.
+✗ How does React update the UI?
+
 Use this FULL PDF context:
 ${state.pdfContext}
+
+The cognitive level (Measures) must influence the question itself.
+Memorization:
+- Focus on facts, definitions, concepts.
+Thinking:
+- Focus on understanding, analysis, comparison, reasoning.
+Creativity:
+- Focus on applying concepts in new situations, problem solving, or scenario-based thinking.
 
 Generate exactly ${state.requestedRules.length} questions.
 
@@ -189,7 +228,7 @@ Rules:
 2. Every question MUST contain: q_id, type, questionText, options, correctAnswer, difficulty, measures, ai_explanation.
 3. MCQ: options must contain exactly 4 choices. correctAnswer must be one of the 4 options.
 4. TF: options must be []. correctAnswer must be "True" or "False".
-5. difficulty: Easy | Normal | Hard | Expert.
+5. difficulty: Easy | Normal | Hard.
 6. measures: Memorization | Creativity | Thinking.
 7. ai_explanation must explain why the answer is correct.
 8. Never leave any field empty.
@@ -202,34 +241,156 @@ Return ONLY valid structured data.
 }
 
 /* =========================
+   Validation Function
+========================= */
+
+function validateExamStructure(exam) {
+    for (const question of exam.questions) {
+
+        if (question.type === "TF") {
+
+            if (
+                question.questionText
+                    .trim()
+                    .endsWith("?")
+            ) {
+                return {
+                    valid: false,
+                    reason:
+                        `TF question must be a statement: ${question.questionText}`,
+                };
+            }
+
+            if (
+                question.options &&
+                question.options.length > 0
+            ) {
+                return {
+                    valid: false,
+                    reason:
+                        `TF question cannot contain options`,
+                };
+            }
+
+            if (
+                !["True", "False"].includes(
+                    question.correctAnswer
+                )
+            ) {
+                return {
+                    valid: false,
+                    reason:
+                        `TF answer must be True or False`,
+                };
+            }
+        }
+
+        if (question.type === "MCQ") {
+
+            if (
+                !question.options ||
+                question.options.length !== 4
+            ) {
+                return {
+                    valid: false,
+                    reason:
+                        `MCQ must contain exactly 4 options`,
+                };
+            }
+
+            if (
+                !question.options.includes(
+                    question.correctAnswer
+                )
+            ) {
+                return {
+                    valid: false,
+                    reason:
+                        `MCQ correct answer must exist in options`,
+                };
+            }
+        }
+    }
+    return {
+        valid: true,
+    };
+}
+
+/* =========================
    AGENT: REVIEWER
 ========================= */
 
 async function reviewerAgent(state) {
     console.log("🤖 Agent 3: Reviewing Exam...");
 
+    const validation = validateExamStructure(
+        state.finalExam
+    );
+
+    if (!validation.valid) {
+        return {
+            reviewVerdict: "FAILED",
+            reviewFeedback: validation.reason,
+        };
+    }
+
     const prompt = `
-Review this exam carefully:
+You are a senior academic reviewer.
+
+Exam:
 ${JSON.stringify(state.finalExam)}
 
-Rules:
-- TF has NO options
-- MCQ has EXACTLY 4 options
-- Answers must be correct
+Original PDF Context:
+${state.pdfContext}
 
-Return:
+Review the exam carefully.
+
+Check ONLY:
+
+1. Factual correctness against the PDF context.
+2. Ambiguous or misleading questions.
+3. Duplicate or highly similar questions.
+4. Coverage of the document.
+5. Difficulty alignment (Easy / Normal / Hard).
+6. Cognitive level alignment
+   (Memorization / Thinking / Creativity).
+7. Correctness of explanations.
+
+IMPORTANT:
+- Ignore formatting completely.
+- Ignore number of options.
+- Ignore TF/MCQ structure.
+- Those are already validated by code.
+
+Return exactly one of:
+
 PASSED
+
 or
-FAILED: reason
+
+FAILED: <clear reason>
 `;
 
     const response = await llm.invoke(prompt);
-    const result = response.content.toString();
 
-    if (result.includes("FAILED")) {
-        return { reviewVerdict: "FAILED", reviewFeedback: result };
+    const result = response.content
+        .toString()
+        .trim();
+
+    if (
+        result
+            .toUpperCase()
+            .startsWith("FAILED")
+    ) {
+        return {
+            reviewVerdict: "FAILED",
+            reviewFeedback: result,
+        };
     }
-    return { reviewVerdict: "PASSED" };
+
+    return {
+        reviewVerdict: "PASSED",
+    };
 }
 
 /* =========================
@@ -369,44 +530,6 @@ export const uploadPDF = async (req, res) => {
 /* ==================================
    SERVICE: GENERATE EXAM MANUALLY
 ================================== */
-
-/*
-input data {
-
-POST /exam/generate-manually?groupId=68401234abcd5678ef901234
-
-{
-  "examDetails": {
-    "title": "Final Exam - JavaScript",
-    "openingAt": 1750000000,
-    "closingAt": 1750003600,
-    "durationMinutes": 60,
-    "status": "Active",
-    "teacherID": "68401234abcd5678ef901111"
-  },
-  "questions": [
-    {
-      "title": "What does 'var' do in JavaScript?",
-      "options": ["Declares a variable", "Declares a function", "Imports a module", "None of the above"],
-      "correctAnswer": "Declares a variable",
-      "difficulty": "easy",
-      "cognitiveLevel": "remember",
-      "typeQue": "MCQ"
-    },
-    {
-      "title": "JavaScript is a compiled language.",
-      "options": [],
-      "correctAnswer": "False",
-      "difficulty": "easy",
-      "cognitiveLevel": "remember",
-      "typeQue": "TF"
-    }
-  ]
-}
-
-}
-
-*/
 
 export const generateExamManually = async (req, res, next) => {
     const { examDetails, questions } = req.body;
