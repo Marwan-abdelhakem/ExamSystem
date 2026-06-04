@@ -1,7 +1,11 @@
 import UserModel from "../../DB/model/user.model.js";
 import RefreshTokenModel from "../../DB/model/refreshToken.model.js";
 import { comparePassowrd, hashPassword } from "../../Utlis/hash.utlis.js";
-import { signToken, signRefreshToken, verifyRefreshToken } from "../../Utlis/token.utlis.js";
+import {
+  signToken,
+  signRefreshToken,
+  verifyRefreshToken,
+} from "../../Utlis/token.utlis.js";
 import successResponse from "../../Utlis/successRespone.utlis.js";
 import uploadToCloudinary from "../../Utlis/cloudinary.utlis.js";
 import { checkCertificateWithAI } from "../../Utlis/checkCertificateWithAI.utlis.js";
@@ -153,10 +157,7 @@ export const sendOtp = async (req, res, next) => {
   if (!user) return next(new Error("User not found", { cause: 404 }));
 
   const cooldown = 60 * 1000;
-  if (
-    user.otp.last_sent_at &&
-    Date.now() - user.otp.last_sent_at < cooldown
-  ) {
+  if (user.otp.last_sent_at && Date.now() - user.otp.last_sent_at < cooldown) {
     return next(
       new Error("Please wait 1 minute before requesting another OTP", {
         cause: 429,
@@ -198,10 +199,7 @@ export const verifyOtp = async (req, res, next) => {
     );
   }
 
-  if (
-    !user.otp.code ||
-    user.otp.expiry_date < Date.now()
-  ) {
+  if (!user.otp.code || user.otp.expiry_date < Date.now()) {
     return next(new Error("OTP expired or not requested", { cause: 400 }));
   }
 
@@ -271,7 +269,9 @@ export const refreshToken = async (req, res, next) => {
     });
 
     if (!storedToken) {
-      return res.status(403).json({ message: "Refresh token revoked or expired" });
+      return res
+        .status(403)
+        .json({ message: "Refresh token revoked or expired" });
     }
 
     const user = await UserModel.findById(decoded.id);
@@ -309,7 +309,9 @@ export const refreshToken = async (req, res, next) => {
       token: newAccessToken,
     });
   } catch (error) {
-    return res.status(403).json({ message: "Invalid or expired refresh token" });
+    return res
+      .status(403)
+      .json({ message: "Invalid or expired refresh token" });
   }
 };
 
@@ -318,7 +320,6 @@ export const logout = async (req, res) => {
   if (token) {
     try {
       await RefreshTokenModel.deleteOne({ token });
-
     } catch (error) {
       console.error("Logout error:", error);
     }
@@ -326,14 +327,16 @@ export const logout = async (req, res) => {
   res.clearCookie("accessToken", {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "strict"
+    sameSite: "strict",
   });
   res.clearCookie("refreshToken", {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "strict"
+    sameSite: "strict",
   });
-  return res.status(200).json({ success: true, message: "Logged out successfully" });
+  return res
+    .status(200)
+    .json({ success: true, message: "Logged out successfully" });
 };
 
 export const getMe = async (req, res, next) => {
@@ -385,5 +388,59 @@ export const updateProfile = async (req, res, next) => {
   } catch (error) {
     console.error("Update profile error:", error);
     return next(new Error("Failed to update profile", { cause: 500 }));
+  }
+};
+
+export const changePassword = async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res
+        .status(400)
+        .json({ message: "Current and new password are required" });
+    }
+
+    const user = await UserModel.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const isMatch = await comparePassowrd({
+      plainText: currentPassword,
+      hashPassword: user.password,
+    });
+    if (!isMatch) {
+      return res.status(400).json({ message: "Current password is incorrect" });
+    }
+
+    user.password = await hashPassword({ plainText: newPassword });
+    await user.save();
+
+    // Revoke any refresh tokens to force re-login across sessions
+    try {
+      await RefreshTokenModel.deleteMany({ userId: user._id });
+    } catch (err) {
+      console.error(
+        "Failed to revoke refresh tokens after password change:",
+        err,
+      );
+    }
+
+    // Clear refresh cookie if present
+    res.clearCookie("refreshToken", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+    });
+
+    return successResponse({
+      res,
+      statusCode: 200,
+      message: "Password changed successfully",
+    });
+  } catch (error) {
+    console.error("Change password error:", error);
+    return next(new Error("Failed to change password", { cause: 500 }));
   }
 };
