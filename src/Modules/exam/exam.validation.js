@@ -38,8 +38,8 @@ export const generateExamManuallyValidation = Joi.object({
                     otherwise: Joi.array().length(0).required(),
                 }),
                 correctAnswer: Joi.string().required(),
-                difficulty: Joi.string().valid("Easy", "Normal", "Hard").required(),
-                cognitiveLevel: Joi.string().valid("Memorization", "Creativity", "Thinking").required(),
+                difficulty: Joi.string().valid("Easy", "Normal", "Hard", "Manual").required(),
+                cognitiveLevel: Joi.string().valid("Memorization", "Creativity", "Thinking", "Manual").required(),
                 typeQue: Joi.string().valid("MCQ", "TF").required(),
             })
         )

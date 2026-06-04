@@ -16,12 +16,12 @@ const QuestionSchema = new Schema(
         },
         difficulty: {
             type: String,
-            enum: ["Easy", "Normal", "Hard"],
+            enum: ["Easy", "Normal", "Hard", "Manual"],
             required: true
         },
         cognitiveLevel: {
             type: String,
-            enum: ["Memorization", "Creativity", "Thinking"],
+            enum: ["Memorization", "Creativity", "Thinking", "Manual"],
             required: true
         },
         examID: {
