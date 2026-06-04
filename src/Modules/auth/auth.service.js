@@ -335,3 +335,55 @@ export const logout = async (req, res) => {
   });
   return res.status(200).json({ success: true, message: "Logged out successfully" });
 };
+
+export const getMe = async (req, res, next) => {
+  try {
+    if (!req.user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    const user = req.user.toObject ? req.user.toObject() : { ...req.user };
+    delete user.password;
+    delete user.otp;
+    return res.status(200).json({
+      success: true,
+      user,
+    });
+  } catch (error) {
+    return next(new Error("Failed to get profile", { cause: 500 }));
+  }
+};
+
+export const updateProfile = async (req, res, next) => {
+  try {
+    const { name } = req.body;
+    const user = await UserModel.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (name) {
+      user.name = name;
+    }
+
+    if (req.file) {
+      const avatarUrl = await uploadToCloudinary(req.file.buffer);
+      user.avatar = avatarUrl;
+    }
+
+    await user.save();
+
+    const updatedUser = user.toObject ? user.toObject() : { ...user };
+    delete updatedUser.password;
+    delete updatedUser.otp;
+
+    return res.status(200).json({
+      success: true,
+      message: "Profile updated successfully",
+      user: updatedUser,
+    });
+  } catch (error) {
+    console.error("Update profile error:", error);
+    return next(new Error("Failed to update profile", { cause: 500 }));
+  }
+};

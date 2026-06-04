@@ -27,6 +27,7 @@ const UserSchema = new Schema(
     qualification: String, // teachers
     subjects_taught: String, // teachers
     educational_level: String, // students
+    avatar: String,
 
     otp: {
       code: {
