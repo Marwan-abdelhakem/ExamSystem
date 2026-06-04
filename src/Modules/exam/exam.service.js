@@ -610,3 +610,18 @@ export const publishAIExam = async (req, res, next) => {
         return next(error);
     }
 };
+
+export const getMyExams = async (req, res, next) => {
+    try {
+        const exams = await ExamModel.find({ teacherID: req.user._id })
+            .populate("groupID", "groupName subject")
+            .sort({ createdAt: -1 });
+
+        return res.status(200).json({
+            success: true,
+            data: exams,
+        });
+    } catch (error) {
+        return next(error);
+    }
+};
