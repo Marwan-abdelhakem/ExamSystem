@@ -8,7 +8,7 @@ const QuestionSchema = new Schema(
         },
         options: {
             type: [String],
-            required: true
+            required: true,
         },
         correctAnswer: {
             type: String,

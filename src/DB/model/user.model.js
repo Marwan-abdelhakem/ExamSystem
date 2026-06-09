@@ -51,7 +51,22 @@ const UserSchema = new Schema(
         default: false,
       },
     },
-  },
+    subscription_type: {
+      type: String,
+      enum: ["free", "premium", "institution"],
+      default: "free",
+    },
+    available_credits: {
+      type: Number,
+      default: function () {
+        return this.role === "Teacher" ? 50 : 30;
+      },
+    },
+    subscription_expires_at: {
+      type: Date,
+      default: () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    },
+  }, 
   {
     timestamps: true,
   },
