@@ -423,8 +423,23 @@ export const generateExam = async (req, res) => {
       return res.status(404).json({ error: "No PDF chunks found." });
     }
 
-    const fullPDFText = dbChunks.map((chunk) => chunk.chunk_text).join("\n\n");
-    console.log(`✅ Full PDF Loaded (${fullPDFText.length} chars)`);
+     let selectedTextChunks = [];
+     const totalChunks = dbChunks.length;
+     const targetQuestionsCount = totalQuestions;
+
+     if (totalChunks <= targetQuestionsCount * 2) {
+       selectedTextChunks = dbChunks.map((chunk) => chunk.chunk_text);
+     } else {
+       const step = Math.floor(totalChunks / targetQuestionsCount);
+       for (let i = 0; i < targetQuestionsCount; i++) {
+         const chunkIndex = Math.min(i * step, totalChunks - 1);
+         selectedTextChunks.push(dbChunks[chunkIndex].chunk_text);
+       }
+     }
+     const fullPDFText = selectedTextChunks.join("\n\n");
+     console.log(
+       `🎯 Smart Context Ready. Sampled Chunks: ${selectedTextChunks.length}/${totalChunks} | Length: ${fullPDFText.length} chars`,
+     );
 
     const dynamicRules = generateExamRulesDynamically(
       totalQuestions,
