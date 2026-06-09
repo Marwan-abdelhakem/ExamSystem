@@ -7,6 +7,13 @@ import PDFChunk from "../../DB/model/pdfChunk.model.js";
 import QuestionModel from "../../DB/model/question.model.js";
 import ExamModel from "../../DB/model/exam.model.js";
 import GroupModel from "../../DB/model/group.model.js";
+import ReactPDF from "@react-pdf/renderer";
+import React from "react";
+import { AcademicExamPDF } from "../../Utlis/examPdf.utlis.js";
+
+
+
+
 
 /* =========================
    LLM & EMBEDDINGS
@@ -393,7 +400,7 @@ const workflow = new StateGraph(graphState)
 
 export const generateExam = async (req, res) => {
   const { examId, totalQuestions, mcqCount, difficulty } = req.body;
-  const userId = req.user?._id || req.body.userId; 
+  const userId = req.user?._id || req.body.userId;
 
   console.log("BODY =>", req.body);
 
@@ -406,14 +413,14 @@ export const generateExam = async (req, res) => {
     if (!user) {
       return res.status(404).json({ error: "User not found." });
     }
-    const examCost = totalQuestions; 
+    const examCost = totalQuestions;
 
     console.log(`👤 User: ${user.name} | Balance: ${user.available_credits} | Exam Cost: ${examCost}`);
 
     if (user.available_credits < examCost) {
-      return res.status(402).json({ 
-        error: "Insufficient credits", 
-        message: `This exam costs ${examCost} credits, but you only have ${user.available_credits}. Please top up.` 
+      return res.status(402).json({
+        error: "Insufficient credits",
+        message: `This exam costs ${examCost} credits, but you only have ${user.available_credits}. Please top up.`
       });
     }
     console.log(`🔍 Fetching chunks for exam ${examId}`);
@@ -423,23 +430,23 @@ export const generateExam = async (req, res) => {
       return res.status(404).json({ error: "No PDF chunks found." });
     }
 
-     let selectedTextChunks = [];
-     const totalChunks = dbChunks.length;
-     const targetQuestionsCount = totalQuestions;
+    let selectedTextChunks = [];
+    const totalChunks = dbChunks.length;
+    const targetQuestionsCount = totalQuestions;
 
-     if (totalChunks <= targetQuestionsCount * 2) {
-       selectedTextChunks = dbChunks.map((chunk) => chunk.chunk_text);
-     } else {
-       const step = Math.floor(totalChunks / targetQuestionsCount);
-       for (let i = 0; i < targetQuestionsCount; i++) {
-         const chunkIndex = Math.min(i * step, totalChunks - 1);
-         selectedTextChunks.push(dbChunks[chunkIndex].chunk_text);
-       }
-     }
-     const fullPDFText = selectedTextChunks.join("\n\n");
-     console.log(
-       `🎯 Smart Context Ready. Sampled Chunks: ${selectedTextChunks.length}/${totalChunks} | Length: ${fullPDFText.length} chars`,
-     );
+    if (totalChunks <= targetQuestionsCount * 2) {
+      selectedTextChunks = dbChunks.map((chunk) => chunk.chunk_text);
+    } else {
+      const step = Math.floor(totalChunks / targetQuestionsCount);
+      for (let i = 0; i < targetQuestionsCount; i++) {
+        const chunkIndex = Math.min(i * step, totalChunks - 1);
+        selectedTextChunks.push(dbChunks[chunkIndex].chunk_text);
+      }
+    }
+    const fullPDFText = selectedTextChunks.join("\n\n");
+    console.log(
+      `🎯 Smart Context Ready. Sampled Chunks: ${selectedTextChunks.length}/${totalChunks} | Length: ${fullPDFText.length} chars`,
+    );
 
     const dynamicRules = generateExamRulesDynamically(
       totalQuestions,
@@ -482,7 +489,7 @@ export const generateExam = async (req, res) => {
       verdict: finalState.reviewVerdict,
       savedCount: savedQuestions.length,
       questions: savedQuestions,
-      remainingCredits: user.available_credits 
+      remainingCredits: user.available_credits
     });
 
   } catch (error) {
@@ -639,6 +646,35 @@ export const getMyExams = async (req, res, next) => {
       data: exams,
     });
   } catch (error) {
+    return next(error);
+  }
+};
+
+export const downloadExamPDF = async (req, res, next) => {
+  const { examId } = req.params;
+
+  const showAnswers = req.query.showAnswers === "true";
+
+  try {
+    const exam = await ExamModel.findById(examId);
+    if (!exam) {
+      return res.status(404).json({ error: "Exam not found." });
+    }
+
+    const questions = await QuestionModel.find({ examID: examId });
+
+    const stream = await ReactPDF.renderToStream(
+      React.createElement(AcademicExamPDF, { exam, questions, showAnswers })
+    );
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename=${exam.title.replace(/\s+/g, "_")}_Exam.pdf`);
+
+    stream.pipe(res);
+    console.log(`✅ PDF Generated from Server (Show Answers: ${showAnswers})`);
+
+  } catch (error) {
+    console.error("❌ React-PDF Server Generation Failed:", error.message);
     return next(error);
   }
 };

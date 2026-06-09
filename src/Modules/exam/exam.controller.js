@@ -1,7 +1,7 @@
 import express from "express";
 import { fileUpload } from "../../Utlis/multer.utlis.js";
 import { validation } from "../../Middelwares/validation.middelwares.js";
-import { authentication } from "../../Middelwares/auth.middlewares.js"; 
+import { authentication } from "../../Middelwares/auth.middlewares.js";
 import { checkExamLimits } from "../../Middelwares/examLimits.middleware.js";
 import {
   generateExamValidation,
@@ -14,6 +14,7 @@ import {
   generateExamManually,
   publishAIExam,
   getMyExams,
+  downloadExamPDF,
 } from "./exam.service.js";
 import { checkPlanUploadLimits } from "../../Middelwares/checkPlanUploadLimits.middleware.js";
 
@@ -25,7 +26,7 @@ router.post(
   "/generate",
   authentication,
   validation(generateExamValidation),
-   checkPlanUploadLimits,
+  checkPlanUploadLimits,
   generateExam,
 );
 
@@ -35,6 +36,7 @@ router.post(
   validation(generateExamManuallyValidation),
   generateExamManually,
 );
+
 router.post(
   "/publish-ai",
   authentication,
@@ -42,5 +44,9 @@ router.post(
   publishAIExam,
 );
 router.get("/myExams", authentication, getMyExams);
+
+router.get("/:examId/download-pdf", authentication, downloadExamPDF);
+
+
 
 export default router;
