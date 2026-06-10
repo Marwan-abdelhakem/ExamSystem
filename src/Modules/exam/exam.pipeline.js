@@ -1,7 +1,20 @@
+import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import { ChatOpenAI, OpenAIEmbeddings } from "@langchain/openai";
 import { StateGraph, END, START } from "@langchain/langgraph";
 import { ExamSchema } from "./exam.validation.js";
-import { MongoClient } from "mongodb";
+import { MongoClient, ObjectId } from "mongodb";
+import { z } from "zod";
+
+const ReviewSchema = z.object({
+  verdict: z.enum(["PASSED", "FAILED"]),
+  reason: z.string(),
+});
+
+function toObjectId(id) {
+  if (id instanceof ObjectId) return id;
+  if (typeof id === "string" && ObjectId.isValid(id)) return new ObjectId(id);
+  throw new Error(`Invalid exam_id: ${id}`);
+}
 
 /* =========================
    LLM & EMBEDDINGS
@@ -44,9 +57,16 @@ LANGUAGE PRESERVATION RULES:
 2. ALL generated content MUST use the same language as the source document.
 3. Never translate technical terms, framework names, library names, APIs, product names, function names, class names, variables, or foreign-language terms.
 4. Preserve terminology exactly as it appears in the document.
-5. Questions, options, answers, and explanations must follow the same writing style and language used in the source document.
+5. Questions, options, and explanations must follow the same writing style and language used in the source document.
 6. If the document mixes multiple languages, preserve the same mixture naturally.
-CRITICAL RULE: The output language MUST match the document language exactly.
+
+IMPORTANT EXCEPTION:
+For TF questions, correctAnswer MUST always be exactly "True" or "False" as a data value.
+Do NOT translate correctAnswer to Arabic or any other language.
+The displayed question text and ai_explanation must still match the document language.
+
+CRITICAL RULE:
+The output language MUST match the document language exactly, except TF correctAnswer which must remain "True" or "False".
 `;
 
 /* =========================
@@ -70,46 +90,49 @@ export function generateExamRulesDynamically(
   return flatRules;
 }
 
-export function splitTextIntoChunks(text, chunkSize = 1000, overlap = 200) {
-  const chunks = [];
-  let i = 0;
-  while (i < text.length) {
-    chunks.push(text.slice(i, i + chunkSize));
-    i += chunkSize - overlap;
-  }
-  return chunks;
+export async function splitTextIntoChunks(text) {
+  const splitter = new RecursiveCharacterTextSplitter({
+    chunkSize: 1000,
+    chunkOverlap: 200,
+  });
+
+  return await splitter.splitText(text);
 }
 
 /* =========================
    VECTOR SEARCH HELPERS
 ========================= */
 
-export async function storePdfChunks(pdfText, bookId) {
+export async function storePdfChunks(pdfText, exam_id) {
   const client = new MongoClient(process.env.MONGO_URI);
+  const id = toObjectId(exam_id);
+
   try {
     const collection = client.db("test").collection("pdf_chunks");
-     await collection.deleteMany({ exam_id: examId });
 
-    const chunks = splitTextIntoChunks(pdfText, 1000, 200);
+    await collection.deleteMany({ exam_id: id });
 
-    const docs = await Promise.all(
-      chunks.map(async (chunk, i) => ({
-        bookId,
-        chunkIndex: i,
-        text: chunk,
-        embedding: await embeddings.embedQuery(chunk),
-      })),
-    );
+    const chunks = await splitTextIntoChunks(pdfText);
+    const allEmbeddings = await embeddings.embedDocuments(chunks);
+
+    const docs = chunks.map((chunk, i) => ({
+      exam_id: id,
+      chunk_text: chunk,
+      embedding: allEmbeddings[i],
+    }));
 
     await collection.insertMany(docs);
-    console.log(`✅ Stored ${docs.length} chunks for bookId: ${bookId}`);
+
+    console.log(`✅ Stored ${docs.length} chunks for exam_id: ${id}`);
   } finally {
     await client.close();
   }
 }
 
-export async function retrieveRelevantChunks(query, bookId, topK = 10) {
+export async function retrieveRelevantChunks(query, exam_id, topK = 10) {
   const client = new MongoClient(process.env.MONGO_URI);
+  const id = toObjectId(exam_id);
+
   try {
     const collection = client.db("test").collection("pdf_chunks");
 
@@ -124,14 +147,14 @@ export async function retrieveRelevantChunks(query, bookId, topK = 10) {
             queryVector: queryEmbedding,
             numCandidates: 150,
             limit: topK,
-            filter:  { exam_id: examId },
+            filter: { exam_id: id },
           },
         },
-        { $project: { text: 1, _id: 0 } },
+        { $project: { chunk_text: 1, _id: 0 } },
       ])
       .toArray();
 
-    return results.map((r) => r.text).join("\n\n");
+    return results.map((r) => r.chunk_text).join("\n\n");
   } finally {
     await client.close();
   }
@@ -143,7 +166,7 @@ export async function retrieveRelevantChunks(query, bookId, topK = 10) {
 
 const graphState = {
   channels: {
-    examId: { value: (x, y) => y ?? x, default: () => null },
+    exam_id: { value: (x, y) => y ?? x, default: () => null },
     pdfContext: { value: (x, y) => y ?? x, default: () => "" },
     requestedRules: { value: (x, y) => y ?? x, default: () => [] },
     draftedQuestions: { value: (x, y) => y ?? x, default: () => "" },
@@ -163,8 +186,8 @@ async function generatorAgent(state) {
     rulesPrompt += `\n- Question ${index + 1}\nType: ${rule.type}\nDifficulty: ${rule.difficulty}\nMeasures: ${rule.measures}\nGoal: ${cognitiveMatrix[matrixKey]}\n`;
   });
 
-  const context = state.examId
-    ? await retrieveRelevantChunks(rulesPrompt, state.examId, 10)
+  const context = state.exam_id
+    ? await retrieveRelevantChunks(rulesPrompt, state.exam_id, 10)
     : state.pdfContext;
 
   let prompt = `You are an expert professor.\n${LANGUAGE_RULES}\nUse this context:\n${context}\nGenerate exactly ${state.requestedRules.length} questions.\nRules:\n${rulesPrompt}\nIMPORTANT: Cover DIFFERENT parts. Do NOT generate answers yet.`;
@@ -187,18 +210,26 @@ async function generatorAgent(state) {
 async function solverAgent(state) {
   console.log("🤖 Agent 2: Solving Questions...");
   const structuredLlm = llm.withStructuredOutput(ExamSchema);
-  const context = state.examId
-    ? await retrieveRelevantChunks(state.draftedQuestions, state.examId, 10)
+  const context = state.exam_id
+    ? await retrieveRelevantChunks(state.draftedQuestions, state.exam_id, 10)
     : state.pdfContext;
 
-  const prompt = `You are an expert exam designer.\n${LANGUAGE_RULES}\nDrafted Questions:\n${state.draftedQuestions}\nContext:\n${context}\nRules:\n1. Same number of questions.\n2. MCQ: 4 options, correctAnswer is one of them.\n3. TF: options=[], correctAnswer="True" or "False".\n4. difficulty: Easy|Normal|Hard. measures: Memorization|Creativity|Thinking.\n5. Fill ai_explanation.\nReturn ONLY valid structured data.`;
+  const prompt = `You are an expert exam designer.\n${LANGUAGE_RULES}\nDrafted Questions:\n${state.draftedQuestions}\nContext:\n${context}\nRules:\n1. Same number of questions.\n2. MCQ: 4 options, correctAnswer is one of them.\n3. TF: options=[], correctAnswer must be exactly "True" or "False" as a data value, regardless of document language.\n4. difficulty: Easy|Normal|Hard. measures: Memorization|Creativity|Thinking.\n5. Fill ai_explanation.\nReturn ONLY valid structured data.`;
 
   const response = await structuredLlm.invoke(prompt);
   return { finalExam: response };
 }
 
 function validateExamStructure(exam) {
+  if (!exam || !Array.isArray(exam.questions) || exam.questions.length === 0) {
+    return { valid: false, reason: "Exam is empty or has no questions" };
+  }
+
   for (const q of exam.questions) {
+    if (!q.questionText || q.questionText.trim() === "") {
+      return { valid: false, reason: "Question text cannot be empty" };
+    }
+
     if (q.type === "TF") {
       if (q.questionText.trim().endsWith("?"))
         return {
@@ -210,9 +241,15 @@ function validateExamStructure(exam) {
       if (!["True", "False"].includes(q.correctAnswer))
         return { valid: false, reason: "TF answer must be True or False" };
     }
+
     if (q.type === "MCQ") {
       if (!q.options || q.options.length !== 4)
         return { valid: false, reason: "MCQ must contain exactly 4 options" };
+      if (new Set(q.options).size !== 4)
+        return {
+          valid: false,
+          reason: "MCQ options must not contain duplicates",
+        };
       if (!q.options.includes(q.correctAnswer))
         return {
           valid: false,
@@ -220,28 +257,54 @@ function validateExamStructure(exam) {
         };
     }
   }
+
   return { valid: true };
 }
 
 async function reviewerAgent(state) {
   console.log("🤖 Agent 3: Reviewing Exam...");
+
   const validation = validateExamStructure(state.finalExam);
-  if (!validation.valid)
-    return { reviewVerdict: "FAILED", reviewFeedback: validation.reason };
-  const context = state.examId
-    ? await retrieveRelevantChunks(
-        JSON.stringify(state.finalExam),
-        state.examId,
-        10,
-      )
+
+  if (!validation.valid) {
+    return {
+      reviewVerdict: "FAILED",
+      reviewFeedback: validation.reason,
+    };
+  }
+
+  const reviewQuery = state.finalExam.questions
+    .map((q) => q.questionText)
+    .join("\n");
+
+  const context = state.exam_id
+    ? await retrieveRelevantChunks(reviewQuery, state.exam_id, 10)
     : state.pdfContext;
 
-  const prompt = `Review this exam for factual correctness, ambiguity, duplicates, difficulty alignment, and explanation correctness.\nExam:\n${JSON.stringify(state.finalExam)}\nPDF Context:\n${context}\nReturn exactly: PASSED or FAILED: <reason>`;
-  const response = await llm.invoke(prompt);
-  const result = response.content.toString().trim();
-  if (result.toUpperCase().startsWith("FAILED"))
-    return { reviewVerdict: "FAILED", reviewFeedback: result };
-  return { reviewVerdict: "PASSED" };
+  const reviewer = llm.withStructuredOutput(ReviewSchema);
+
+  const result = await reviewer.invoke(`
+Review this exam.
+
+Check ONLY:
+
+1. factual correctness
+2. ambiguity
+3. duplicate questions
+4. difficulty alignment
+5. explanation correctness
+
+Exam:
+${JSON.stringify(state.finalExam)}
+
+Context:
+${context}
+`);
+
+  return {
+    reviewVerdict: result.verdict,
+    reviewFeedback: result.reason,
+  };
 }
 
 function routeAfterReview(state) {
