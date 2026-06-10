@@ -7,13 +7,8 @@ import PDFChunk from "../../DB/model/pdfChunk.model.js";
 import QuestionModel from "../../DB/model/question.model.js";
 import ExamModel from "../../DB/model/exam.model.js";
 import GroupModel from "../../DB/model/group.model.js";
-import ReactPDF from "@react-pdf/renderer";
-import React from "react";
-import { AcademicExamPDF } from "../../Utlis/examPdf.utlis.js";
-
-
-
-
+import puppeteer from "puppeteer";
+import { examPdfQueue } from "../../Utlis/concurrencyQueue.utlis.js";
 
 /* =========================
    LLM & EMBEDDINGS
@@ -405,7 +400,9 @@ export const generateExam = async (req, res) => {
   console.log("BODY =>", req.body);
 
   if (!userId) {
-    return res.status(401).json({ error: "Unauthorized access. User ID is missing." });
+    return res
+      .status(401)
+      .json({ error: "Unauthorized access. User ID is missing." });
   }
 
   try {
@@ -415,12 +412,14 @@ export const generateExam = async (req, res) => {
     }
     const examCost = totalQuestions;
 
-    console.log(`👤 User: ${user.name} | Balance: ${user.available_credits} | Exam Cost: ${examCost}`);
+    console.log(
+      `👤 User: ${user.name} | Balance: ${user.available_credits} | Exam Cost: ${examCost}`,
+    );
 
     if (user.available_credits < examCost) {
       return res.status(402).json({
         error: "Insufficient credits",
-        message: `This exam costs ${examCost} credits, but you only have ${user.available_credits}. Please top up.`
+        message: `This exam costs ${examCost} credits, but you only have ${user.available_credits}. Please top up.`,
       });
     }
     console.log(`🔍 Fetching chunks for exam ${examId}`);
@@ -484,14 +483,15 @@ export const generateExam = async (req, res) => {
     console.log(`💾 Saved ${savedQuestions.length} questions to DB`);
     user.available_credits -= examCost;
     await user.save();
-    console.log(`💸 Deducted ${examCost} credits. New Balance: ${user.available_credits}`);
+    console.log(
+      `💸 Deducted ${examCost} credits. New Balance: ${user.available_credits}`,
+    );
     return res.status(200).json({
       verdict: finalState.reviewVerdict,
       savedCount: savedQuestions.length,
       questions: savedQuestions,
-      remainingCredits: user.available_credits
+      remainingCredits: user.available_credits,
     });
-
   } catch (error) {
     console.error("❌ Pipeline Failed:", error.message);
     return res.status(500).json({ error: error.message });
@@ -652,7 +652,6 @@ export const getMyExams = async (req, res, next) => {
 
 export const downloadExamPDF = async (req, res, next) => {
   const { examId } = req.params;
-
   const showAnswers = req.query.showAnswers === "true";
 
   try {
@@ -662,19 +661,293 @@ export const downloadExamPDF = async (req, res, next) => {
     }
 
     const questions = await QuestionModel.find({ examID: examId });
+    let questionsHtml = "";
 
-    const stream = await ReactPDF.renderToStream(
-      React.createElement(AcademicExamPDF, { exam, questions, showAnswers })
-    );
+    questions.forEach((q, index) => {
+      let optionsHtml = "";
+      let badgeClass = "badge-normal";
+      if (q.difficulty === "Easy") badgeClass = "badge-easy";
+      if (q.difficulty === "Hard") badgeClass = "badge-hard";
+
+      if (q.typeQue === "MCQ" && q.options) {
+        optionsHtml = `
+          <div class="options-grid">
+            ${q.options
+              .map((opt, i) => {
+                const optionChar = String.fromCharCode(65 + i);
+                const isCorrect = opt === q.correctAnswer;
+                const activeClass =
+                  showAnswers && isCorrect ? "option correct" : "option";
+                const checkRadio = showAnswers && isCorrect ? "●" : " ";
+
+                return `
+                <div class="${activeClass}">
+                  <span class="radio-indicator">${checkRadio}</span>
+                  <span class="option-letter">${optionChar}</span>
+                  <span class="option-text">${opt}</span>
+                </div>
+              `;
+              })
+              .join("")}
+          </div>
+        `;
+      } else {
+        const isTrueCorrect = q.correctAnswer === "True";
+        const isFalseCorrect = q.correctAnswer === "False";
+
+        optionsHtml = `
+          <div class="options-grid">
+            <div class="option ${showAnswers && isTrueCorrect ? "correct" : ""}">
+              <span class="radio-indicator">${showAnswers && isTrueCorrect ? "●" : " "}</span>
+              <span class="option-text">صح / True</span>
+            </div>
+            <div class="option ${showAnswers && isFalseCorrect ? "correct" : ""}">
+              <span class="radio-indicator">${showAnswers && isFalseCorrect ? "●" : " "}</span>
+              <span class="option-text">خطأ / False</span>
+            </div>
+          </div>
+        `;
+      }
+
+      const explanationHtml =
+        showAnswers && q.ai_explanation
+          ? `
+        <div class="ai-explanation">
+          <div class="ai-exp-title">✨ AI Explanation</div>
+          <div class="ai-exp-text">${q.ai_explanation}</div>
+        </div>
+      `
+          : "";
+
+      questionsHtml += `
+        <div class="question-block">
+          <div class="question-title">
+            <span class="question-number">السؤال ${index + 1}:</span> ${q.title} 
+            ${
+              showAnswers
+                ? `
+              <span class="badge ${badgeClass}">${q.difficulty}</span>
+              <span class="badge badge-cognitive">${q.cognitiveLevel}</span>
+            `
+                : ""
+            }
+          </div>
+          ${optionsHtml}
+          ${explanationHtml}
+        </div>
+      `;
+    });
+
+    const finalHtmlContent = `
+      <!DOCTYPE html>
+      <html lang="ar">
+      <head>
+        <meta charset="UTF-8">
+        <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
+       <style>
+          body { 
+            font-family: 'Cairo', sans-serif; 
+            padding: 10px; 
+            color: #1e293b; 
+            direction: rtl; 
+            text-align: right; 
+            background-color: #ffffff; 
+            font-size: 13px;
+          }
+          
+          .header-container { 
+            border: 1.5px solid #16305b; 
+            border-radius: 8px; 
+            padding: 12px 18px; 
+            margin-bottom: 20px; 
+            background-color: #f8fafc; 
+          }
+          .exam-title { 
+            text-align: center; 
+            color: #16305b; 
+            font-size: 20px; 
+            font-weight: bold; 
+            margin: 0 0 10px 0; 
+            border-bottom: 1.5px solid #e2e8f0; 
+            padding-bottom: 6px; 
+          }
+          .meta-grid { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr 1fr; 
+            gap: 10px; 
+            font-size: 12px; 
+            font-weight: bold; 
+            color: #475569; 
+          }
+          
+          .student-info-box { 
+            display: ${showAnswers ? "none" : "grid"}; 
+            grid-template-columns: 2fr 1fr 1fr; 
+            gap: 15px; 
+            margin-top: 10px; 
+            padding-top: 10px; 
+            border-top: 1px dashed #cbd5e1; 
+          }
+          .info-field { 
+            font-size: 11px; 
+            font-weight: bold; 
+            color: #64748b; 
+            border-bottom: 1px solid #cbd5e1; 
+            padding-bottom: 2px; 
+          }
+          .question-block { 
+            margin-bottom: 15px; 
+            padding: 12px 15px;  
+            border: 1px solid #e2e8f0; 
+            border-radius: 8px; 
+            background-color: #ffffff; 
+            page-break-inside: avoid;
+          }
+          .question-title { 
+            font-size: 14px; 
+            font-weight: bold; 
+            margin-bottom: 10px; 
+            color: #0f172a; 
+            line-height: 1.5; 
+          }
+          .question-number { 
+            color: #16305b; 
+            font-size: 15px; 
+          }
+          .badge { 
+            font-size: 9px; 
+            padding: 1px 8px; 
+            border-radius: 12px; 
+            font-weight: bold; 
+            display: inline-block; 
+          }
+          .badge-easy { background-color: #dcfce7; color: #15803d; }
+          .badge-normal { background-color: #dbeafe; color: #1d4ed8; }
+          .badge-hard { background-color: #ffedd5; color: #c2410c; }
+          .badge-cognitive { background-color: #f3e8ff; color: #6b21a8; margin-right: 3px; }
+          .options-grid { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            gap: 8px; 
+            margin-top: 8px; 
+          }
+          .option { 
+            display: flex; 
+            align-items: center; 
+            padding: 6px 12px;
+            border: 1px solid #e2e8f0; 
+            border-radius: 6px; 
+            font-size: 12px; 
+            background-color: #f8fafc; 
+            gap: 8px; 
+          }
+          .option.correct { 
+            border-color: #16305b; 
+            background-color: #eff6ff; 
+            color: #16305b; 
+            font-weight: bold; 
+          }
+          .radio-indicator { 
+            width: 11px; 
+            height: 11px; 
+            border: 1.5px solid #cbd5e1; 
+            border-radius: 50%; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            font-size: 10px; 
+            color: #16305b; 
+            font-weight: bold; 
+            background-color: #ffffff; 
+          }
+          .option.correct .radio-indicator { border-color: #16305b; }
+          .option-letter { font-weight: bold; color: #64748b; margin-left: 3px; }
+          .option.correct .option-letter { color: #16305b; 
+          .ai-explanation { 
+            margin-top: 10px; 
+            padding: 8px 12px; 
+            background-color: #faf5ff; 
+            border-right: 3px solid #8b5cf6; 
+            border-radius: 4px; 
+            font-size: 11px;
+            color: #5b21b6; 
+            line-height: 1.5; 
+          }
+          .ai-exp-title { 
+            font-weight: bold; 
+            font-size: 12px; 
+            margin-bottom: 3px; 
+            color: #6b21a8; 
+          }
+          .ai-exp-text { font-weight: 500; }
+        </style>
+      </head>
+      <body>
+        <div class="header-container">
+          <h1 class="exam-title">${exam.title}</h1>
+          <div class="meta-grid">
+            <div class="meta-item">📚 المادة: ${exam.subject || "General Science"}</div>
+            <div class="meta-item">⏱️ المدة: ${exam.durationMinutes} دقيقة</div>
+            <div class="meta-item">📝 الأسئلة: ${questions.length} أسئلة</div>
+          </div>
+
+          <div class="student-info-box">
+            <div class="info-field">اسم الطالب: ................................................................</div>
+            <div class="info-field">الفصل: ..................</div>
+            <div class="info-field">التاريخ: .............</div>
+          </div>
+        </div>
+        
+        <div class="exam-body">
+          ${questionsHtml}
+        </div>
+      </body>
+      </html>
+    `;
+
+    console.log("⏱️ Sending PDF task to the Concurrency Queue...");
+
+    const pdfBuffer = await examPdfQueue.run(async () => {
+      console.log(
+        `🚀 Launching Headless Chrome... Active: ${examPdfQueue.runningCount}/${examPdfQueue.maxConcurrency}`,
+      );
+
+      const browser = await puppeteer.launch({
+        headless: "new",
+        args: ["--no-sandbox", "--disable-setuid-sandbox"],
+      });
+
+      const page = await browser.newPage();
+      await page.setContent(finalHtmlContent, { waitUntil: "networkidle0" });
+
+      console.log("📄 Exporting page to PDF Buffer with Headers & Footers...");
+      const buffer = await page.pdf({
+        format: "A4",
+        printBackground: true,
+        margin: { top: "20mm", right: "20mm", bottom: "25mm", left: "20mm" },
+
+        displayHeaderFooter: true,
+        headerTemplate: '<div style="font-size:0px;"></div>',
+        footerTemplate: `
+          <div style="font-size: 10px; color: #94a3b8; font-family: 'Cairo', sans-serif; width: 100%; display: flex; justify-content: space-between; padding: 0 20mm; box-sizing: border-box; direction: rtl;">
+            <span>Aigentic AI Exam Generator - Where Agents Craft Your Success</span>
+            <span>صفحة <span class="pageNumber"></span> من <span class="totalPages"></span></span>
+          </div>
+        `,
+      });
+
+      await browser.close();
+      return buffer;
+    });
 
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `attachment; filename=${exam.title.replace(/\s+/g, "_")}_Exam.pdf`);
-
-    stream.pipe(res);
-    console.log(`✅ PDF Generated from Server (Show Answers: ${showAnswers})`);
-
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=${exam.title.replace(/\s+/g, "_")}_Exam.pdf`,
+    );
+    return res.send(pdfBuffer);
   } catch (error) {
-    console.error("❌ React-PDF Server Generation Failed:", error.message);
+    console.error("❌ PDF Generation Failed:", error.message);
     return next(error);
   }
 };
