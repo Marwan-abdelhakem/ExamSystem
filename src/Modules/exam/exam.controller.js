@@ -15,18 +15,24 @@ import {
   publishAIExam,
   getMyExams,
   downloadExamPDF,
+  updateExamStatus,
 } from "./exam.service.js";
 import { checkPlanUploadLimits } from "../../Middelwares/checkPlanUploadLimits.middleware.js";
 
 const router = express.Router();
 
+router.post(
+  "/upload",
+  authentication,
+  fileUpload().single("pdfFile"),
+  checkPlanUploadLimits,
+  uploadPDF,
+);
 
-router.post("/upload", fileUpload().single("pdfFile"), uploadPDF);
 router.post(
   "/generate",
   authentication,
   validation(generateExamValidation),
-  checkPlanUploadLimits,
   generateExam,
 );
 
@@ -44,9 +50,7 @@ router.post(
   publishAIExam,
 );
 router.get("/myExams", authentication, getMyExams);
-
+router.patch("/:examId/status", authentication, updateExamStatus);
 router.get("/:examId/download-pdf", authentication, downloadExamPDF);
-
-
 
 export default router;
