@@ -4,7 +4,7 @@ export const validation = (schema) => {
         if (validationResults.error) {
             return res.status(400).json({
                 message: "Validation Error",
-                error: validationResults.error
+                error: validationResults.error.message
             })
         }
 

@@ -18,16 +18,14 @@ export const startExam = async (req, res, next) => {
         return next(new Error("Exam not found", { cause: 404 }));
     }
 
-    const isEnrolled = exam.groupID.students
-        .map((id) => id.toString())
-        .includes(studentID.toString());
+    const isCreator = exam.teacherID && exam.teacherID.toString() === studentID.toString();
+    const groups = Array.isArray(exam.groupID) ? exam.groupID : [exam.groupID];
+    const isEnrolled = isCreator || groups.some(group => 
+        group?.students?.map((id) => id.toString()).includes(studentID.toString())
+    );
 
     if (!isEnrolled) {
         return next(new Error("You are not enrolled in this exam's group", { cause: 403 }));
-    }
-
-    if (exam.accessCode && exam.accessCode !== accessCode) {
-        return next(new Error("Invalid access code", { cause: 401 }));
     }
 
     if (exam.status !== "Active") {
@@ -44,10 +42,42 @@ export const startExam = async (req, res, next) => {
 
     const existingAttempt = await ExamAttemptModel.findOne({ examID: examId, studentID });
     if (existingAttempt) {
-        return next(new Error("You have already started this exam", { cause: 409 }));
+        // Practice exam (student owns the exam) → allow unlimited retakes
+        if (isCreator) {
+            // Delete old attempt so a fresh one can be created below
+            await ExamAttemptModel.deleteOne({ _id: existingAttempt._id });
+        } else {
+            // Teacher exam → one attempt only
+            if (existingAttempt.endTime) {
+                return next(new Error("You have already submitted this exam", { cause: 409 }));
+            }
+            // Resume unfinished attempt
+            const targetExamId = exam.parentExamID || examId;
+            const questions = await QuestionModel.find({ examID: targetExamId }).select(
+                "title options typeQue difficulty cognitiveLevel"
+            );
+            return successResponse({
+                res,
+                statusCode: 200,
+                message: "Exam resumed successfully",
+                data: {
+                    attemptId: existingAttempt._id,
+                    exam: {
+                        title: exam.title,
+                        durationMinutes: exam.durationMinutes,
+                        numOfQuestion: exam.numOfQuestion,
+                        closingAt: exam.closingAt,
+                        subject: Array.isArray(exam.groupID) ? exam.groupID[0]?.subject : exam.groupID?.subject,
+                    },
+                    questions,
+                },
+            });
+        }
     }
 
-    const questions = await QuestionModel.find({ examID: examId }).select(
+
+    const targetExamId = exam.parentExamID || examId;
+    const questions = await QuestionModel.find({ examID: targetExamId }).select(
         "title options typeQue difficulty cognitiveLevel"
     );
 
@@ -68,7 +98,7 @@ export const startExam = async (req, res, next) => {
                 durationMinutes: exam.durationMinutes,
                 numOfQuestion: exam.numOfQuestion,
                 closingAt: exam.closingAt,
-                subject: exam.groupID.subject,
+                subject: Array.isArray(exam.groupID) ? exam.groupID[0]?.subject : exam.groupID?.subject,
             },
             questions,
         },
@@ -131,6 +161,7 @@ export const submitExam = async (req, res, next) => {
         statusCode: 200,
         message: "Exam submitted successfully",
         data: {
+            attemptId: attempt._id,
             totalQuestions,
             correctAnswers: score,
             percentage,
@@ -151,7 +182,7 @@ export const getAttemptResult = async (req, res, next) => {
         })
         .populate({
             path: "examID",
-            select: "title durationMinutes groupID createdAt",
+            select: "title durationMinutes groupID teacherID createdAt",
             populate: {
                 path: "groupID",
                 select: "subject groupName",
@@ -196,8 +227,21 @@ export const getAttemptResult = async (req, res, next) => {
         data: {
             exam: {
                 title: attempt.examID?.title,
-                subject: attempt.examID?.groupID?.subject,
-                groupName: attempt.examID?.groupID?.groupName,
+                isPractice: attempt.examID?.teacherID?.toString() === studentID.toString(),
+                subject: (() => {
+                    const isPractice = attempt.examID?.teacherID?.toString() === studentID.toString();
+                    if (isPractice) return "Personal Practice";
+                    return Array.isArray(attempt.examID?.groupID)
+                        ? attempt.examID.groupID[0]?.subject
+                        : attempt.examID?.groupID?.subject;
+                })(),
+                groupName: (() => {
+                    const isPractice = attempt.examID?.teacherID?.toString() === studentID.toString();
+                    if (isPractice) return "Practice Exam";
+                    return Array.isArray(attempt.examID?.groupID)
+                        ? attempt.examID.groupID[0]?.groupName
+                        : attempt.examID?.groupID?.groupName;
+                })(),
                 durationMinutes: attempt.examID?.durationMinutes,
                 date: attempt.startTime,
             },

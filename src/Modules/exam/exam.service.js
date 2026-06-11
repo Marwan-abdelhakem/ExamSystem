@@ -96,7 +96,7 @@ export const uploadPDF = async (req, res) => {
     const rawText = pdfData.text;
     if (!rawText || rawText.trim() === "") return res.status(400).json({ error: "Failed to extract text from PDF." });
 
-    const chunks = splitTextIntoChunks(rawText);
+    const chunks = await splitTextIntoChunks(rawText);
     console.log(`📦 Total Chunks: ${chunks.length}`);
 
     const examId = new mongoose.Types.ObjectId();
@@ -141,24 +141,65 @@ export const generateExamManually = async (req, res, next) => {
 ========================= */
 
 export const publishAIExam = async (req, res, next) => {
-  const { examId, examDetails } = req.body;
+  let { examId, examDetails } = req.body;
   const { groupId } = req.query;
 
-  if (!groupId) return next(new Error("Group ID is required"));
-  if (!groupId.match(/^[a-f\d]{24}$/i)) return next(new Error("Invalid Group ID format"));
+  const isStudent = req.user.role === "Student";
+  let groupIDsArray = [];
 
-  const group = await GroupModel.findById(groupId);
-  if (!group) return next(new Error("Group Not Found"));
+  if (groupId) {
+    if (!groupId.match(/^[a-f\d]{24}$/i)) return next(new Error("Invalid Group ID format"));
+    const group = await GroupModel.findById(groupId);
+    if (!group) return next(new Error("Group Not Found"));
+    groupIDsArray.push(groupId);
+  } else if (!isStudent) {
+    return next(new Error("Group ID is required"));
+  }
 
   try {
+    const existingExam = await ExamModel.findById(examId);
+    if (existingExam) {
+      if (groupId) {
+        if (!existingExam.groupID.map(id => id.toString()).includes(groupId.toString())) {
+          existingExam.groupID.push(groupId);
+          await existingExam.save();
+        }
+      }
+      const user = await UserModel.findById(existingExam.teacherID).select("available_credits");
+      return res.status(200).json({
+        success: true,
+        message: "Exam assigned to group successfully",
+        remainingCredits: user?.available_credits ?? null,
+        data: { exam: existingExam },
+      });
+    }
+
+    const user = await UserModel.findById(examDetails.teacherID);
+    if (!user) return next(new Error("User Not Found"));
+
+    const isKeepForever = !examDetails.deletion_at;
+    if (isKeepForever && user.subscription_type !== "free") {
+      const deductionAmount = user.role === "Student" ? 10 : 15;
+      if (user.available_credits < deductionAmount) {
+        return next(new Error(`Insufficient credits to keep exam forever. You need ${deductionAmount} credits, but you only have ${user.available_credits}.`));
+      }
+      user.available_credits -= deductionAmount;
+      await user.save();
+      console.log(`💸 Deducted ${deductionAmount} credits from ${user.name} to keep exam forever. New balance: ${user.available_credits}`);
+    }
+
     const numOfQuestion = await QuestionModel.countDocuments({ examID: examId });
-    const exam = await ExamModel.create({ _id: examId, ...examDetails, numOfQuestion, groupID: groupId });
-    const user = await UserModel.findById(examDetails.teacherID).select("available_credits");
+    const exam = await ExamModel.create({
+      _id: examId,
+      ...examDetails,
+      numOfQuestion,
+      groupID: groupIDsArray,
+    });
 
     return res.status(201).json({
       success: true,
       message: "AI Exam Published Successfully",
-      remainingCredits: user?.available_credits ?? null,
+      remainingCredits: user.available_credits,
       data: { exam },
     });
   } catch (error) {

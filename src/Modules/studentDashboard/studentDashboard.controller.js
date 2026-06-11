@@ -5,7 +5,7 @@ import { authentication, authorization } from "../../Middelwares/auth.middleware
 const router = express.Router();
 
 router.use(authentication);
-router.use(authorization({ role: ["Student"] }));
+router.use(authorization({ role: ["Student", "Teacher"] }));
 
 // GET /api/student-dashboard
 router.get("/", studentDashboardService.getStudentDashboard);

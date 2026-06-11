@@ -79,7 +79,7 @@ export const getStudentDashboard = async (req, res, next) => {
             return {
                 examId: exam._id,
                 title: exam.title,
-                subject: exam.groupID?.subject,
+                subject: Array.isArray(exam.groupID) ? exam.groupID[0]?.subject : exam.groupID?.subject,
                 teacherName: exam.teacherID?.name,
                 durationMinutes: exam.durationMinutes,
                 numOfQuestion: exam.numOfQuestion,

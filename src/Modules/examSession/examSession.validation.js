@@ -10,7 +10,7 @@ const objectId = Joi.string().custom((value, helper) => {
 
 export const startExamValidation = Joi.object({
     examId: objectId.required(),
-    accessCode: Joi.string().required(),
+    accessCode: Joi.string().optional().allow(""),
 });
 
 

@@ -18,7 +18,7 @@ const ExamSchema = new Schema(
       type: Number,
       required: true,
     },
-    deletion_at: { type: Date },
+    deletion_at: { type: Date, expires: 0 },
     status: {
       type: String,
       enum: ["Active", "Closed", "Hidden", "Suspended"],
@@ -33,10 +33,13 @@ const ExamSchema = new Schema(
       ref: "User",
       required: true,
     },
-    groupID: {
+    groupID: [{
       type: mongoose.Schema.Types.ObjectId,
       ref: "Group",
-      required: true,
+    }],
+    parentExamID: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Exam",
     },
   },
   {

@@ -201,9 +201,15 @@ export const  addStudentToGroup = async (req, res, next) => {
 };
 
 export const getMyGroups = async (req, res, next) => {
-  const teacherId = req.user.id;
-  // Fetch groups where this user is the teacher
-  const groups = await Group.find({ teacher: teacherId });
+  const userId = req.user.id || req.user._id;
+  const userRole = req.user.role;
+
+  let groups;
+  if (userRole === "Student") {
+    groups = await Group.find({ students: userId });
+  } else {
+    groups = await Group.find({ teacher: userId });
+  }
   
   return successResponse({
     res,

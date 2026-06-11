@@ -11,7 +11,8 @@ export const downloadExamPDF = async (req, res, next) => {
     const exam = await ExamModel.findById(examId);
     if (!exam) return res.status(404).json({ error: "Exam not found." });
 
-    const questions = await QuestionModel.find({ examID: examId });
+    const targetExamId = exam.parentExamID || examId;
+    const questions = await QuestionModel.find({ examID: targetExamId });
     let questionsHtml = "";
 
     questions.forEach((q, index) => {

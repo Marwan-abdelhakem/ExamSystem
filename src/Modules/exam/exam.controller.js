@@ -32,6 +32,7 @@ router.post(
 router.post(
   "/generate",
   authentication,
+  checkExamLimits,
   validation(generateExamValidation),
   generateExam,
 );
@@ -39,6 +40,7 @@ router.post(
 router.post(
   "/generate-manually",
   authentication,
+  checkExamLimits,
   validation(generateExamManuallyValidation),
   generateExamManually,
 );

@@ -24,7 +24,7 @@ export const generateExamManuallyValidation = Joi.object({
         openingAt: Joi.number().required(),
         closingAt: Joi.number().greater(Joi.ref("openingAt")).required(),
         durationMinutes: Joi.number().min(1).required(),
-        accessCode: Joi.string().required(),
+        accessCode: Joi.string().optional().allow(""),
         status: Joi.string().valid("Active", "Closed", "Hidden").required(),
         teacherID: Joi.string().hex().length(24).required(),
     }).required(),
@@ -54,9 +54,10 @@ export const publishAIExamValidation = Joi.object({
         openingAt: Joi.number().required(),
         closingAt: Joi.number().greater(Joi.ref("openingAt")).required(),
         durationMinutes: Joi.number().min(1).required(),
-        accessCode: Joi.string().required(),
+        accessCode: Joi.string().optional().allow(""),
         status: Joi.string().valid("Active", "Closed", "Hidden").required(),
         teacherID: Joi.string().hex().length(24).required(),
+        deletion_at: Joi.any().optional(),
     }).required(),
 });
 
@@ -69,42 +70,6 @@ export const QuestionSchema = z.object({
     difficulty: z.enum(["Easy", "Normal", "Hard", "Manual"]),
     measures: z.enum(["Memorization", "Creativity", "Thinking", "Manual"]),
     ai_explanation: z.string().min(10),
-}).superRefine((question, ctx) => {
-    if (question.type === "MCQ") {
-        if (question.options.length !== 4) {
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                message: "MCQ must contain exactly 4 options",
-            });
-        }
-        if (!question.options.includes(question.correctAnswer)) {
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                message: "Correct answer must exist in options",
-            });
-        }
-    }
-
-    if (question.type === "TF") {
-        if (question.options.length > 0) {
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                message: "TF questions cannot contain options",
-            });
-        }
-        if (!["True", "False"].includes(question.correctAnswer)) {
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                message: "TF answer must be True or False",
-            });
-        }
-        if (question.questionText.trim().endsWith("?")) {
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                message: "TF question must be a statement",
-            });
-        }
-    }
 });
 
 export const ExamSchema = z.object({

@@ -267,6 +267,7 @@ async function reviewerAgent(state) {
   const validation = validateExamStructure(state.finalExam);
 
   if (!validation.valid) {
+    console.log("❌ Structure validation failed:", validation.reason);
     return {
       reviewVerdict: "FAILED",
       reviewFeedback: validation.reason,
@@ -300,6 +301,8 @@ ${JSON.stringify(state.finalExam)}
 Context:
 ${context}
 `);
+
+  console.log("🧐 LLM Reviewer result:", result.verdict, "Reason:", result.reason);
 
   return {
     reviewVerdict: result.verdict,

@@ -7,7 +7,7 @@ import { startExamValidation, submitExamValidation } from "./examSession.validat
 const router = express.Router();
 
 router.use(authentication);
-router.use(authorization({ role: ["Student"] }));
+router.use(authorization({ role: ["Student", "Teacher"] }));
 
 // POST /api/exam-session/start
 router.post("/start", validation(startExamValidation), examSessionService.startExam);

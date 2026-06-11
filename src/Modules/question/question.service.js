@@ -1,10 +1,13 @@
 import QuestionModel from "../../DB/model/question.model.js";
+import ExamModel from "../../DB/model/exam.model.js";
 import successResponse from "../../Utlis/successRespone.utlis.js";
 
 export const getQuestionsByExamId = async (req, res, next) => {
   const { examId } = req.params;
   try {
-    const questions = await QuestionModel.find({ examID: examId });
+    const exam = await ExamModel.findById(examId);
+    const targetExamId = (exam && exam.parentExamID) ? exam.parentExamID : examId;
+    const questions = await QuestionModel.find({ examID: targetExamId });
     if (!questions || questions.length === 0) {
       return successResponse({
         res,
