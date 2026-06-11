@@ -5,10 +5,15 @@ import authRouter from "./Modules/auth/auth.controller.js"
 import groupRouter from "./Modules/groups/group.controller.js"
 import examRouter from "./Modules/exam/exam.controller.js"
 import questionRouter from "./Modules/question/question.controller.js"
+import dashboardRouter from "./Modules/dashboard/dashboard.controller.js"
+import examSessionRouter from "./Modules/examSession/examSession.controller.js"
+import studentReportRouter from "./Modules/studentReport/studentReport.controller.js"
+import profileRouter from "./Modules/profile/profile.controller.js"
+import studentDashboardRouter from "./Modules/studentDashboard/studentDashboard.controller.js"
 import cors from "cors"
 
 
-const allowedOrigins = ["http://localhost:5173","http://localhost:5172", "http://localhost:3000"];
+const allowedOrigins = ["http://localhost:5173", "http://localhost:5172", "http://localhost:3000"];
 
 const corsOptions = {
     origin: (origin, callback) => {
@@ -31,6 +36,11 @@ const bootStrap = async (app, express) => {
     app.use("/api/group", groupRouter)
     app.use("/api/exam", examRouter)
     app.use("/api/question", questionRouter)
+    app.use("/api/dashboard", dashboardRouter)
+    app.use("/api/exam-session", examSessionRouter)
+    app.use("/api/student-report", studentReportRouter)
+    app.use("/api/profile", profileRouter)
+    app.use("/api/student-dashboard", studentDashboardRouter)
 
     app.all("/*dummy", (req, res, next) => {
         return next(new Error("Not found Handler !!!!", { cause: 409 }))

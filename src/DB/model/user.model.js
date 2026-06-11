@@ -66,7 +66,11 @@ const UserSchema = new Schema(
       type: Date,
       default: () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     },
-  }, 
+    preferences: {
+      emailNotifications: { type: Boolean, default: true },
+      aiInsights: { type: Boolean, default: false },
+    },
+  },
   {
     timestamps: true,
   },
