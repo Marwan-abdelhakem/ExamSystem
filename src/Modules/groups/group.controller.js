@@ -54,4 +54,7 @@ router.get(
   groupService.getMyGroups,
 );
 
+// -------------group details----------------
+router.get("/:groupId", groupService.getGroupDetails);
+router.delete("/:groupId/students/:studentId", groupService.removeStudentFromGroup);
 export default router;
