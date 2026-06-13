@@ -1,6 +1,7 @@
 import ExamModel from "../../DB/model/exam.model.js";
 import QuestionModel from "../../DB/model/question.model.js";
 import ExamAttemptModel from "../../DB/model/examAttempt.model.js";
+import UserModel from "../../DB/model/user.model.js";
 import successResponse from "../../Utlis/successRespone.utlis.js";
 
 
@@ -80,6 +81,16 @@ export const startExam = async (req, res, next) => {
     const questions = await QuestionModel.find({ examID: targetExamId }).select(
         "title options typeQue difficulty cognitiveLevel"
     );
+
+    // Deduct 0.5 credits from the teacher if the student is starting a teacher-created exam
+    if (!isCreator && exam.teacherID) {
+        const teacher = await UserModel.findById(exam.teacherID);
+        if (teacher && teacher.role === "Teacher") {
+            teacher.available_credits = Math.max(0, teacher.available_credits - 0.5);
+            await teacher.save();
+            console.log(`💸 Deducted 0.5 credits from teacher ${teacher.name} for student exam entry. New balance: ${teacher.available_credits}`);
+        }
+    }
 
     const attempt = await ExamAttemptModel.create({
         examID: examId,

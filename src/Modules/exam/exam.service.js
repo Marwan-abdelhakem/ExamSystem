@@ -128,7 +128,7 @@ export const generateExamManually = async (req, res, next) => {
   if (!group) return next(new Error("Group Not Found"));
 
   try {
-    const exam = await ExamModel.create({ ...examDetails, numOfQuestion: questions.length, groupID: groupId });
+    const exam = await ExamModel.create({ ...examDetails, numOfQuestion: questions.length, groupID: [groupId] });
     const createdQuestions = await QuestionModel.insertMany(questions.map((q) => ({ ...q, examID: exam._id })));
     return res.status(201).json({ success: true, message: "Exam and Questions Created Successfully", data: { exam, questions: createdQuestions } });
   } catch (error) {
@@ -160,6 +160,9 @@ export const publishAIExam = async (req, res, next) => {
     const existingExam = await ExamModel.findById(examId);
     if (existingExam) {
       if (groupId) {
+        if (!Array.isArray(existingExam.groupID)) {
+          existingExam.groupID = existingExam.groupID ? [existingExam.groupID] : [];
+        }
         if (!existingExam.groupID.map(id => id.toString()).includes(groupId.toString())) {
           existingExam.groupID.push(groupId);
           await existingExam.save();
