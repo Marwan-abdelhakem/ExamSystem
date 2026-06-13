@@ -42,9 +42,9 @@ const bootStrap = async (app, express) => {
     app.use("/api/profile", profileRouter)
     app.use("/api/student-dashboard", studentDashboardRouter)
 
-    app.all("/*dummy", (req, res, next) => {
-        return next(new Error("Not found Handler !!!!", { cause: 409 }))
-    })
+    app.use((req, res, next) => {
+    return next(new Error("Not found Handler !!!!", { cause: 404 }))
+})
 
     app.use(globalErrorHandler)
 }

@@ -85,13 +85,26 @@ export const joinGroup = async (req, res, next) => {
   });
 };
 
+//  edited to include rejectedAt and requestedAt fields and group details in the response
 export const teacherViewPendingRequest = async (req, res, next) => {
   const teacher = req.user.id;
   const groups = await Group.find({ teacher }).populate("pendingStudents");
   if (!groups) {
     return next(new Error("No Groups Found"));
   }
-  const pendingStudents = groups.reduce((acc, group) => acc.concat(group.pendingStudents), []);
+
+  const pendingStudents = groups.flatMap((group) =>
+    group.pendingStudents.map((student) => ({
+      studentId: student,
+      groupId: {
+        _id: group._id,
+        groupName: group.groupName,
+        subject: group.subject,
+      },
+      requestedAt: group.updatedAt,
+    })),
+  );
+
   return successResponse({
     res,
     message: "Pending Requests",
@@ -105,7 +118,25 @@ export const teacherViewRejectedRequest = async (req, res, next) => {
   if (!groups) {
     return next(new Error("No Groups Found"));
   }
-  
+
+  const rejectedStudents = groups.flatMap((group) =>
+    group.rejectedStudents.map((student) => ({
+      studentId: student,
+      groupId: {
+        _id: group._id,
+        groupName: group.groupName,
+        subject: group.subject,
+      },
+      rejectedAt: group.updatedAt,
+    })),
+  );
+
+  return successResponse({
+    res,
+    message: "Rejected Requests",
+    data: rejectedStudents,
+  });
+};
   const rejectedStudents = groups.reduce((acc, group) => acc.concat(group.rejectedStudents), []);
   return successResponse({
     res,
@@ -216,4 +247,67 @@ export const getMyGroups = async (req, res, next) => {
     message: "Groups fetched successfully",
     data: groups,
   });
+};
+
+
+
+export const getGroupDetails = async (req, res, next) => {
+  try {
+    const { groupId } = req.params;
+    const teacherId = req.user.id;
+
+    const group = await Group.findOne({
+      _id: groupId,
+      teacher: teacherId,
+    });
+
+    if (!group) {
+      return res.status(404).json({
+        message: "Group not found",
+      });
+    }
+
+    return successResponse({
+      res,
+      message: "Group details fetched successfully",
+      data: {
+        _id: group._id,
+        groupName: group.groupName,
+        subject: group.subject,
+        inviteCode: group.accessCode,
+        students: group.students,
+        pendingStudents: group.pendingStudents,
+        totalStudents: group.students.length,
+      },
+    });
+  } catch (error) {      
+    next(error);
+  }
+};                      
+export const removeStudentFromGroup = async (req, res, next) => {
+  try {                   
+    const { groupId, studentId } = req.params;
+    const teacherId = req.user.id;
+
+    const group = await Group.findOne({ _id: groupId, teacher: teacherId });
+    if (!group) return next(new Error("Group Not Found"));
+
+    const isStudent = group.students.some(
+      (id) => id.toString() === studentId.toString()
+    );
+    if (!isStudent) return next(new Error("Student Not Found In This Group"));
+
+    group.students = group.students.filter(
+      (id) => id.toString() !== studentId.toString()
+    );
+    await group.save();
+
+    return successResponse({
+      res,
+      message: "Student Removed Successfully",
+      data: group,
+    });
+  } catch (error) {
+    next(error);
+  }
 };
