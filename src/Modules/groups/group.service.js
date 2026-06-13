@@ -1,5 +1,7 @@
 import Group from "../../DB/model/group.model.js";
 import UserModel from "../../DB/model/user.model.js";
+import ExamModel from "../../DB/model/exam.model.js";
+import ExamAttemptModel from "../../DB/model/examAttempt.model.js";
 import { RandomString } from "../../Utlis/generateOtp.js";
 import successResponse from "../../Utlis/successRespone.utlis.js";
 
@@ -261,6 +263,53 @@ export const getGroupDetails = async (req, res, next) => {
       });
     }
 
+    // Fetch exams assigned to this group
+    const exams = await ExamModel.find({ groupID: groupId });
+    const studentIds = group.students.map((s) => s._id);
+
+    const assignedExams = await Promise.all(
+      exams.map(async (exam) => {
+        const submissionsCount = await ExamAttemptModel.countDocuments({
+          examID: exam._id,
+          studentID: { $in: studentIds }
+        });
+
+        return {
+          id: exam._id,
+          title: exam.title,
+          dueDate: new Date(exam.closingAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+          status: exam.status,
+          submissions: submissionsCount,
+          totalStudents: studentIds.length,
+        };
+      })
+    );
+
+    // Calculate group statistics
+    const attempts = await ExamAttemptModel.find({
+      examID: { $in: exams.map((e) => e._id) },
+      studentID: { $in: studentIds }
+    });
+
+    let avgPerformance = 0;
+    if (attempts.length > 0) {
+      let totalScorePercentageSum = 0;
+      for (const attempt of attempts) {
+        const exam = exams.find((e) => e._id.toString() === attempt.examID.toString());
+        const maxScore = exam ? exam.numOfQuestion : 10;
+        const scorePercentage = (attempt.totalScore / (maxScore || 10)) * 100;
+        totalScorePercentageSum += scorePercentage;
+      }
+      avgPerformance = Math.round(totalScorePercentageSum / attempts.length);
+    }
+
+    const totalPossibleSubmissions = studentIds.length * exams.length;
+    const totalSubmissions = attempts.length;
+    const completionRate = totalPossibleSubmissions > 0
+      ? Math.round((totalSubmissions / totalPossibleSubmissions) * 100)
+      : 0;
+    const pendingSubmissions = totalPossibleSubmissions - totalSubmissions;
+
     return successResponse({
       res,
       message: "Group details fetched successfully",
@@ -272,6 +321,13 @@ export const getGroupDetails = async (req, res, next) => {
         students: group.students,
         pendingStudents: group.pendingStudents,
         totalStudents: group.students.length,
+        assignedExams,
+        performance: {
+          avgPerformance,
+          completionRate,
+          pendingSubmissions: pendingSubmissions > 0 ? pendingSubmissions : 0,
+          aiRecommendationsCount: exams.length > 0 ? 3 : 0,
+        }
       },
     });
   } catch (error) {      
