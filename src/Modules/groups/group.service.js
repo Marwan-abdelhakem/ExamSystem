@@ -255,7 +255,7 @@ export const getGroupDetails = async (req, res, next) => {
     const group = await Group.findOne({
       _id: groupId,
       teacher: teacherId,
-    }).populate("students", "name email avatar").populate("pendingStudents", "name email avatar");
+    }).populate("students", "name email avatar createdAt").populate("pendingStudents", "name email avatar createdAt");
 
     if (!group) {
       return res.status(404).json({
