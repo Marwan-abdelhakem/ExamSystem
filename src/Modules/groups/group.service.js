@@ -1,4 +1,5 @@
 import Group from "../../DB/model/group.model.js";
+import UserModel from "../../DB/model/user.model.js";
 import { RandomString } from "../../Utlis/generateOtp.js";
 import successResponse from "../../Utlis/successRespone.utlis.js";
 
@@ -131,13 +132,6 @@ export const teacherViewRejectedRequest = async (req, res, next) => {
     })),
   );
 
-  return successResponse({
-    res,
-    message: "Rejected Requests",
-    data: rejectedStudents,
-  });
-};
-  const rejectedStudents = groups.reduce((acc, group) => acc.concat(group.rejectedStudents), []);
   return successResponse({
     res,
     message: "Rejected Requests",
@@ -306,6 +300,55 @@ export const removeStudentFromGroup = async (req, res, next) => {
       res,
       message: "Student Removed Successfully",
       data: group,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const addStudentToGroupDetail = async (req, res, next) => {
+  try {
+    const { groupId } = req.params;
+    const { email } = req.body;
+    const teacherId = req.user.id;
+
+    if (!email) {
+      return next(new Error("Email is required", { cause: 400 }));
+    }
+
+    const student = await UserModel.findOne({ email, role: "Student" });
+    if (!student) {
+      return next(new Error("Student not found", { cause: 404 }));
+    }
+
+    const group = await Group.findOne({ _id: groupId, teacher: teacherId });
+    if (!group) {
+      return next(new Error("Group not found or unauthorized", { cause: 404 }));
+    }
+
+    const studentIdStr = student._id.toString();
+
+    // Check if student is already in the group
+    if (group.students.some((id) => id.toString() === studentIdStr)) {
+      return next(new Error("Student already in this group", { cause: 400 }));
+    }
+
+    // Remove from pending/rejected if they are there
+    group.pendingStudents = group.pendingStudents.filter((id) => id.toString() !== studentIdStr);
+    group.rejectedStudents = group.rejectedStudents.filter((id) => id.toString() !== studentIdStr);
+
+    group.students.push(student._id);
+    await group.save();
+
+    return successResponse({
+      res,
+      message: "Student added successfully",
+      data: {
+        addedStudent: {
+          name: student.name,
+          email: student.email,
+        },
+      },
     });
   } catch (error) {
     next(error);

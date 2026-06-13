@@ -57,4 +57,5 @@ router.get(
 // -------------group details----------------
 router.get("/:groupId", groupService.getGroupDetails);
 router.delete("/:groupId/students/:studentId", groupService.removeStudentFromGroup);
+router.post("/:groupId/addStudent", groupService.addStudentToGroupDetail);
 export default router;
