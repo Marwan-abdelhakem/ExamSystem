@@ -27,7 +27,10 @@ const UserSchema = new Schema(
     qualification: String, // teachers
     subjects_taught: String, // teachers
     educational_level: String, // students
-    avatar: String,
+    avatar: {
+      type: String,
+      default: "https://res.cloudinary.com/dgjw80t8x/image/upload/q_auto/f_auto/v1780575623/mostafamagdy_hsjbw3.png" ,
+    },
 
     otp: {
       code: {

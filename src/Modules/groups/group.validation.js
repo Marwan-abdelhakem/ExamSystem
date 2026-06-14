@@ -12,6 +12,7 @@ export const joinGroupValidation = joi.object({
 export const teacherAcceptRejectRequestValidation = joi.object({
   requestId: joi.string().required(),
   action: joi.string().required().valid("accept","reject"),
+  groupId: joi.string().optional(),
 })
 
 export const addStudentToGroupValidation = joi.object({
@@ -21,4 +22,5 @@ export const addStudentToGroupValidation = joi.object({
 
 export const acceptRejectedStudentValidation = joi.object({
   requestId: joi.string().required(),
+  groupId: joi.string().optional(),
 })

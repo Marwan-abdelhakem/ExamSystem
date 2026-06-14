@@ -61,22 +61,6 @@ export const joinGroup = async (req, res, next) => {
     return next(new Error("You Are Already A Member"));
   }
 
-  const pendingAnotherGroup = await Group.findOne({
-    pendingStudents: userId,
-  });
-
-  if (pendingAnotherGroup) {
-    return next(new Error("You Are Already A Pending Member In Another Group"));
-  }
-
-  const alreadyInAnotherGroup = await Group.findOne({
-    students: userId,
-  });
-
-  if (alreadyInAnotherGroup) {
-    return next(new Error("You Are Already A Student In Another Group"));
-  }
-
   group.pendingStudents.push(userId);
 
   await group.save();
@@ -142,8 +126,12 @@ export const teacherViewRejectedRequest = async (req, res, next) => {
 };
 
 export const teacherAcceptRejectRequest = async (req, res, next) => {
-  const { requestId, action } = req.body;
-  const group = await Group.findOne({ pendingStudents: requestId });
+  const { requestId, action, groupId } = req.body;
+  const query = { pendingStudents: requestId };
+  if (groupId) {
+    query._id = groupId;
+  }
+  const group = await Group.findOne(query);
   if (!group) {
     return next(new Error("Group Not Found"));
   }
@@ -168,17 +156,14 @@ export const teacherAcceptRejectRequest = async (req, res, next) => {
 };
 
 export  const acceptrejectedStudents = async (req, res, next) => {
-  const {requestId} = req.body;
-  const group = await Group.findOne({rejectedStudents:requestId});
+  const {requestId, groupId} = req.body;
+  const query = {rejectedStudents:requestId};
+  if (groupId) {
+    query._id = groupId;
+  }
+  const group = await Group.findOne(query);
   if (!group) {
     return next(new Error("Group Not Found"));
-  }
-  const alreadyInAnotherGroup = await Group.findOne({
-    students: requestId,
-  });
-
-  if (alreadyInAnotherGroup) {
-    return next(new Error("You Are Already A Student In Another Group"));
   }
   group.students.push(requestId);
   group.rejectedStudents = group.rejectedStudents.filter(
@@ -198,25 +183,14 @@ export const  addStudentToGroup = async (req, res, next) => {
   if (!group) {
     return next(new Error("Group Not Found"));
   }
-  const alreadyInAnotherGroup = await Group.findOne({
-    students: requestId,
-  });
+  if (group.students.includes(requestId)) {
+    return next(new Error("Student Is Already A Member In This Group"));
+  }
   if (group.pendingStudents.includes(requestId)) {
     group.pendingStudents = group.pendingStudents.filter((id) => id.toString() !== requestId.toString());
   }
   if (group.rejectedStudents.includes(requestId)) {
     group.rejectedStudents = group.rejectedStudents.filter((id) => id.toString() !== requestId.toString());
-  }
-  if (alreadyInAnotherGroup) {
-    return next(new Error("You Are Already A Student In Another Group"));
-  }
-
-  const alreadyInAnotherGroupPending = await Group.findOne({
-    pendingStudents: requestId,
-  });
-
-  if (alreadyInAnotherGroupPending) {
-    return next(new Error("You Are Already A Pending Student In Another Group"));
   }
   group.students.push(requestId);
   await group.save();
@@ -250,8 +224,87 @@ export const getMyGroups = async (req, res, next) => {
 export const getGroupDetails = async (req, res, next) => {
   try {
     const { groupId } = req.params;
-    const teacherId = req.user.id;
+    const userId = req.user.id || req.user._id;
+    const userRole = req.user.role;
 
+    if (userRole === "Student") {
+      const group = await Group.findOne({
+        _id: groupId,
+        students: userId,
+      }).populate("teacher", "name email avatar");
+
+      if (!group) {
+        return res.status(404).json({
+          message: "Group not found or unauthorized",
+        });
+      }
+
+      // Fetch active exams assigned to this group
+      const exams = await ExamModel.find({
+        groupID: groupId,
+        status: "Active",
+      });
+
+      const nowInSeconds = Math.floor(Date.now() / 1000);
+      
+      const pendingExamsCount = exams.filter(
+        (exam) => exam.closingAt > nowInSeconds
+      ).length;
+
+      const completedAttempts = await ExamAttemptModel.find({
+        studentID: userId,
+        examID: { $in: exams.map((e) => e._id) },
+        endTime: { $exists: true, $ne: null },
+      }).select("examID");
+
+      const completedExamIds = new Set(
+        completedAttempts.map((a) => a.examID.toString())
+      );
+
+      const assignedExams = exams.map((exam) => {
+        const secondsLeft = exam.closingAt - nowInSeconds;
+        const daysLeft = Math.ceil(secondsLeft / (60 * 60 * 24));
+        let dueLabel = "";
+        if (daysLeft <= 0) dueLabel = "Due today";
+        else if (daysLeft === 1) dueLabel = "Due tomorrow";
+        else dueLabel = `Due in ${daysLeft} days`;
+
+        const isCompleted = completedExamIds.has(exam._id.toString());
+        const isExpired = exam.closingAt <= nowInSeconds;
+
+        return {
+          id: exam._id,
+          title: exam.title,
+          dueDate: new Date(exam.closingAt * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+          status: isExpired ? "Closed" : (isCompleted ? "Completed" : "Active"),
+          dueLabel,
+          isCompleted,
+          isAvailable: exam.openingAt <= nowInSeconds,
+          durationMinutes: exam.durationMinutes,
+          numOfQuestion: exam.numOfQuestion,
+        };
+      });
+
+      return successResponse({
+        res,
+        message: "Group details fetched successfully",
+        data: {
+          _id: group._id,
+          groupName: group.groupName,
+          subject: group.subject,
+          inviteCode: group.accessCode,
+          teacher: {
+            name: group.teacher?.name || "Teacher",
+            email: group.teacher?.email || "",
+            avatar: group.teacher?.avatar || "",
+          },
+          pendingExamsCount,
+          assignedExams,
+        },
+      });
+    }
+
+    const teacherId = req.user.id;
     const group = await Group.findOne({
       _id: groupId,
       teacher: teacherId,
