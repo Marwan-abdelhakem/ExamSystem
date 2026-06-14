@@ -255,11 +255,12 @@ export const getGroupDetails = async (req, res, next) => {
         studentID: userId,
         examID: { $in: exams.map((e) => e._id) },
         endTime: { $exists: true, $ne: null },
-      }).select("examID");
+      }).select("examID _id");
 
-      const completedExamIds = new Set(
-        completedAttempts.map((a) => a.examID.toString())
-      );
+      const completedExamAttemptsMap = {};
+      completedAttempts.forEach((attempt) => {
+        completedExamAttemptsMap[attempt.examID.toString()] = attempt._id.toString();
+      });
 
       const assignedExams = exams.map((exam) => {
         const secondsLeft = exam.closingAt - nowInSeconds;
@@ -269,7 +270,8 @@ export const getGroupDetails = async (req, res, next) => {
         else if (daysLeft === 1) dueLabel = "Due tomorrow";
         else dueLabel = `Due in ${daysLeft} days`;
 
-        const isCompleted = completedExamIds.has(exam._id.toString());
+        const isCompleted = exam._id.toString() in completedExamAttemptsMap;
+        const attemptId = completedExamAttemptsMap[exam._id.toString()] || null;
         const isExpired = exam.closingAt <= nowInSeconds;
 
         return {
@@ -279,6 +281,7 @@ export const getGroupDetails = async (req, res, next) => {
           status: isExpired ? "Closed" : (isCompleted ? "Completed" : "Active"),
           dueLabel,
           isCompleted,
+          attemptId,
           isAvailable: exam.openingAt <= nowInSeconds,
           durationMinutes: exam.durationMinutes,
           numOfQuestion: exam.numOfQuestion,
