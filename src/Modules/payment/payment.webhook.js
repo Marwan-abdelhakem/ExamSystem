@@ -1,6 +1,7 @@
 import express from 'express';
 import Stripe from 'stripe';
 import UserModel from '../../DB/model/user.model.js';
+import { sendInvoiceEmail } from '../../Utlis/sendEmail.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const router = express.Router();
@@ -25,6 +26,7 @@ router.post('/', express.raw({ type: 'application/json' }), async (req, res) => 
     try {
       const user = await UserModel.findOne({ stripe_customer_id: customerId });
       if (user) {
+        let planLabel = "Student Plan";
         
         if (priceId === process.env.STRIPE_STUDENT_LITE_PRICE_ID) {
           const creditsToAdd = 150;
@@ -36,6 +38,7 @@ router.post('/', express.raw({ type: 'application/json' }), async (req, res) => 
           user.subscription_type = 'lite';
           user.stripe_subscription_id = subscriptionId;
           user.grace_period_ends_at = null;
+          planLabel = "Student Lite Subscription";
         } 
         
         else if (priceId === process.env.STRIPE_STUDENT_PREMIUM_PRICE_ID) {
@@ -44,9 +47,13 @@ router.post('/', express.raw({ type: 'application/json' }), async (req, res) => 
           user.subscription_type = 'premium';
           user.stripe_subscription_id = subscriptionId;
           user.grace_period_ends_at = null;
+          planLabel = "Student Premium Subscription";
         }
 
         await user.save();
+        const invoiceUrl = invoice.hosted_invoice_url || "https://dashboard.stripe.com";
+        const amountPaid = (invoice.amount_paid / 100).toFixed(2);
+        await sendInvoiceEmail(user.email, invoiceUrl, planLabel, amountPaid);
       }
     } catch (dbErr) {
       console.error(`❌ Database Error during subscription handling: ${dbErr.message}`);
@@ -88,6 +95,15 @@ router.post('/', express.raw({ type: 'application/json' }), async (req, res) => 
           }
 
           await user.save();
+
+          // Send Invoice / Receipt Email
+          const receiptUrl = paymentIntent.charges?.data?.[0]?.receipt_url || "https://dashboard.stripe.com";
+          const amountPaid = (paymentIntent.amount / 100).toFixed(2);
+          const productName = type === 'teacher_plan' 
+            ? `Teacher ${planName.charAt(0).toUpperCase() + planName.slice(1)} Plan` 
+            : `${credits} Credits Add-on`;
+
+          await sendInvoiceEmail(user.email, receiptUrl, productName, amountPaid);
         }
       } catch (dbErr) {
         console.error(`❌ Database Error during one-time credit top-up: ${dbErr.message}`);
