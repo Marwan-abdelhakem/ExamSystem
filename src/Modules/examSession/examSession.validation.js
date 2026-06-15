@@ -23,6 +23,5 @@ export const submitExamValidation = Joi.object({
                 studentAnswer: Joi.string().allow(null, "").required(),
             })
         )
-        .min(1)
         .required(),
 });

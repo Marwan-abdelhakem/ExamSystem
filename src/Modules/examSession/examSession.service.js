@@ -147,32 +147,47 @@ export const submitExam = async (req, res, next) => {
         return next(new Error("Exam already submitted", { cause: 409 }));
     }
 
-    const questionIds = answers.map((a) => a.questionId);
-    const questions = await QuestionModel.find({ _id: { $in: questionIds } }).select(
+    const exam = await ExamModel.findById(attempt.examID);
+    if (!exam) {
+        return next(new Error("Exam not found", { cause: 404 }));
+    }
+    const targetExamId = exam.parentExamID || exam._id;
+
+    const allQuestions = await QuestionModel.find({ examID: targetExamId }).select(
         "correctAnswer"
     );
 
-    const correctAnswerMap = {};
-    questions.forEach((q) => {
-        correctAnswerMap[q._id.toString()] = q.correctAnswer;
-    });
+    const submittedAnswersMap = {};
+    if (Array.isArray(answers)) {
+        answers.forEach((a) => {
+            if (a.questionId) {
+                submittedAnswersMap[a.questionId.toString()] = a.studentAnswer;
+            }
+        });
+    }
 
     let score = 0;
-    const gradedAnswers = answers.map((a) => {
-        const correct = correctAnswerMap[a.questionId];
+    const gradedAnswers = allQuestions.map((q) => {
+        const qIdStr = q._id.toString();
+        const hasAnswered = qIdStr in submittedAnswersMap;
+        const studentAnswer = hasAnswered ? submittedAnswersMap[qIdStr] : null;
+
+        const correct = q.correctAnswer;
         const isCorrect =
-            correct && a.studentAnswer?.trim().toLowerCase() === correct.trim().toLowerCase();
+            correct &&
+            studentAnswer &&
+            studentAnswer.trim().toLowerCase() === correct.trim().toLowerCase();
 
         if (isCorrect) score++;
 
         return {
-            questionId: a.questionId,
-            studentAnswer: a.studentAnswer,
+            questionId: q._id,
+            studentAnswer: studentAnswer || null,
             isCorrect: !!isCorrect,
         };
     });
 
-    const totalQuestions = answers.length;
+    const totalQuestions = allQuestions.length;
     const percentage = totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 0;
 
     attempt.answers = gradedAnswers;
@@ -180,9 +195,8 @@ export const submitExam = async (req, res, next) => {
     attempt.endTime = new Date();
     await attempt.save();
 
-    const exam = await ExamModel.findById(attempt.examID);
-    const isPractice = exam?.teacherID?.toString() === studentID.toString();
-    const allowReview = exam?.allowReview !== false || isPractice;
+    const isPractice = exam.teacherID?.toString() === studentID.toString();
+    const allowReview = exam.allowReview !== false || isPractice;
 
     return successResponse({
         res,
@@ -210,7 +224,7 @@ export const getAttemptResult = async (req, res, next) => {
         })
         .populate({
             path: "examID",
-            select: "title durationMinutes groupID teacherID createdAt allowReview",
+            select: "title durationMinutes groupID teacherID createdAt allowReview numOfQuestion",
             populate: {
                 path: "groupID",
                 select: "subject groupName",
@@ -229,7 +243,7 @@ export const getAttemptResult = async (req, res, next) => {
         return next(new Error("Exam not submitted yet", { cause: 400 }));
     }
 
-    const totalQuestions = attempt.answers.length;
+    const totalQuestions = attempt.examID?.numOfQuestion || attempt.answers.length;
     const correctCount = attempt.answers.filter((a) => a.isCorrect).length;
     const incorrectCount = totalQuestions - correctCount;
     const percentage =
