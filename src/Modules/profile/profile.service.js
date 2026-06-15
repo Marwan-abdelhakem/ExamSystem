@@ -3,6 +3,9 @@ import { hashPassword, comparePassowrd } from "../../Utlis/hash.utlis.js";
 import uploadToCloudinary from "../../Utlis/cloudinary.utlis.js";
 import successResponse from "../../Utlis/successRespone.utlis.js";
 import { sendInvoiceEmail } from "../../Utlis/sendEmail.js";
+import Stripe from "stripe";
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 
 export const getProfile = async (req, res, next) => {
@@ -182,7 +185,20 @@ export const updateCreditsAfterCheckout = async (req, res, next) => {
 
         // Send confirmation/invoice email as a fallback if planName/planPrice are provided
         if (planName && planPrice !== undefined) {
-            const invoiceUrl = "https://dashboard.stripe.com/payments";
+            let invoiceUrl = "https://dashboard.stripe.com/payments";
+            try {
+                if (user.stripe_customer_id) {
+                    const invoices = await stripe.invoices.list({
+                        customer: user.stripe_customer_id,
+                        limit: 1
+                    });
+                    if (invoices.data && invoices.data.length > 0) {
+                        invoiceUrl = invoices.data[0].invoice_pdf || invoices.data[0].hosted_invoice_url || invoiceUrl;
+                    }
+                }
+            } catch (stripeErr) {
+                console.error("❌ Failed to retrieve Stripe invoice PDF:", stripeErr.message);
+            }
             await sendInvoiceEmail(user.email, invoiceUrl, planName, planPrice);
         }
 

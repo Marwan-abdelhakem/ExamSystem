@@ -69,7 +69,7 @@ router.post('/', express.raw({ type: 'application/json' }), async (req, res) => 
         }
 
         await user.save();
-        const invoiceUrl = invoice.hosted_invoice_url || "https://dashboard.stripe.com";
+        const invoiceUrl = invoice.invoice_pdf || invoice.hosted_invoice_url || "https://dashboard.stripe.com";
         const amountPaid = (invoice.amount_paid / 100).toFixed(2);
         await sendInvoiceEmail(user.email, invoiceUrl, planLabel, amountPaid);
       }
