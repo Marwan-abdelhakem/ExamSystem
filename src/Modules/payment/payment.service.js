@@ -38,19 +38,23 @@ export const createSubscriptionIntent = async (req, res) => {
       await user.save();
     }
 
-    let subscription;
-    try {
-      subscription = await stripe.subscriptions.create({
-        customer: stripeCustomerId,
+    const createSubscription = async (customerId) => {
+      return await stripe.subscriptions.create({
+        customer: customerId,
         items: [{ price: priceId }],
         payment_behavior: 'default_incomplete',
         payment_settings: { save_default_payment_method: 'on_subscription' },
-        expand: ['latest_invoice.payment_intent'],
+        expand: ['latest_invoice.confirmation_secret'],
       });
+    };
+
+    let subscription;
+    try {
+      subscription = await createSubscription(stripeCustomerId);
     } catch (subErr) {
       // Self-healing: If customer is missing/deleted from Stripe, recreate it and retry
       if (subErr.code === 'resource_missing' || subErr.message.includes('No such customer')) {
-        console.log(`⚠️ Stripe customer ${stripeCustomerId} not found in Stripe. Re-creating for user: ${userId}`);
+        console.log(`⚠️ Stripe customer ${stripeCustomerId} not found. Re-creating...`);
         const customer = await stripe.customers.create({
           email: userEmail,
           metadata: { userId: userId.toString() }
@@ -58,24 +62,25 @@ export const createSubscriptionIntent = async (req, res) => {
         stripeCustomerId = customer.id;
         user.stripe_customer_id = stripeCustomerId;
         await user.save();
-
-        subscription = await stripe.subscriptions.create({
-          customer: stripeCustomerId,
-          items: [{ price: priceId }],
-          payment_behavior: 'default_incomplete',
-          payment_settings: { save_default_payment_method: 'on_subscription' },
-          expand: ['latest_invoice.payment_intent'],
-        });
+        subscription = await createSubscription(stripeCustomerId);
       } else {
         throw subErr;
       }
     }
 
+    // Stripe API 2025+: client_secret is now in confirmation_secret (not payment_intent)
+    const clientSecret = subscription.latest_invoice?.confirmation_secret?.client_secret;
+    if (!clientSecret) {
+      console.error('❌ No client_secret in confirmation_secret. Invoice:', subscription.latest_invoice);
+      return res.status(500).json({ error: 'Payment setup failed: no client_secret from Stripe.' });
+    }
+
     res.status(200).json({
       subscriptionId: subscription.id,
-      clientSecret: subscription.latest_invoice.payment_intent.client_secret,
+      clientSecret,
     });
   } catch (error) {
+    console.error('❌ createSubscriptionIntent error:', error);
     res.status(500).json({ error: error.message });
   }
 };
