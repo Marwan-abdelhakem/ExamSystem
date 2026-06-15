@@ -66,7 +66,7 @@ export const signUp = async (req, res, next) => {
     },
   });
 
-  await sendEmail(email, otp);
+  await sendEmail(email, otp, "verify");
 
   return successResponse({
     res,
@@ -156,7 +156,7 @@ export const login = async (req, res, next) => {
 };
 
 export const sendOtp = async (req, res, next) => {
-  const { email } = req.body;
+  const { email, purpose } = req.body;
   const user = await UserModel.findOne({ email });
 
   if (!user) return next(new Error("User not found", { cause: 404 }));
@@ -181,7 +181,7 @@ export const sendOtp = async (req, res, next) => {
   };
 
   await user.save();
-  await sendEmail(user.email, otp);
+  await sendEmail(user.email, otp, purpose || "verify");
 
   return successResponse({
     res,

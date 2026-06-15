@@ -2,6 +2,7 @@ import UserModel from "../../DB/model/user.model.js";
 import { hashPassword, comparePassowrd } from "../../Utlis/hash.utlis.js";
 import uploadToCloudinary from "../../Utlis/cloudinary.utlis.js";
 import successResponse from "../../Utlis/successRespone.utlis.js";
+import { sendInvoiceEmail } from "../../Utlis/sendEmail.js";
 
 
 export const getProfile = async (req, res, next) => {
@@ -164,7 +165,7 @@ export const deactivateAccount = async (req, res, next) => {
 };
 
 export const updateCreditsAfterCheckout = async (req, res, next) => {
-    const { available_credits, subscription_credits, purchased_credits, subscription_type } = req.body;
+    const { available_credits, subscription_credits, purchased_credits, subscription_type, planName, planPrice } = req.body;
 
     try {
         const user = await UserModel.findById(req.user._id);
@@ -178,6 +179,12 @@ export const updateCreditsAfterCheckout = async (req, res, next) => {
         if (subscription_type !== undefined) user.subscription_type = subscription_type;
 
         await user.save();
+
+        // Send confirmation/invoice email as a fallback if planName/planPrice are provided
+        if (planName && planPrice !== undefined) {
+            const invoiceUrl = "https://dashboard.stripe.com/payments";
+            await sendInvoiceEmail(user.email, invoiceUrl, planName, planPrice);
+        }
 
         return successResponse({
             res,
