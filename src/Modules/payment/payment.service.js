@@ -38,13 +38,39 @@ export const createSubscriptionIntent = async (req, res) => {
       await user.save();
     }
 
-    const subscription = await stripe.subscriptions.create({
-      customer: stripeCustomerId,
-      items: [{ price: priceId }],
-      payment_behavior: 'default_incomplete',
-      payment_settings: { save_default_payment_method: 'on_subscription' },
-      expand: ['latest_invoice.payment_intent'],
-    });
+    let subscription;
+    try {
+      subscription = await stripe.subscriptions.create({
+        customer: stripeCustomerId,
+        items: [{ price: priceId }],
+        payment_behavior: 'default_incomplete',
+        payment_settings: { save_default_payment_method: 'on_subscription' },
+        expand: ['latest_invoice.payment_intent'],
+      });
+    } catch (subErr) {
+      // Self-healing: If customer is missing/deleted from Stripe, recreate it and retry
+      if (subErr.code === 'resource_missing' || subErr.message.includes('No such customer')) {
+        console.log(`⚠️ Stripe customer ${stripeCustomerId} not found in Stripe. Re-creating for user: ${userId}`);
+        const customer = await stripe.customers.create({
+          email: userEmail,
+          metadata: { userId: userId.toString() }
+        });
+        stripeCustomerId = customer.id;
+        user.stripe_customer_id = stripeCustomerId;
+        await user.save();
+
+        subscription = await stripe.subscriptions.create({
+          customer: stripeCustomerId,
+          items: [{ price: priceId }],
+          payment_behavior: 'default_incomplete',
+          payment_settings: { save_default_payment_method: 'on_subscription' },
+          expand: ['latest_invoice.payment_intent'],
+        });
+      } else {
+        throw subErr;
+      }
+    }
+
     res.status(200).json({
       subscriptionId: subscription.id,
       clientSecret: subscription.latest_invoice.payment_intent.client_secret,
