@@ -27,6 +27,8 @@ export const generateExamManuallyValidation = Joi.object({
         accessCode: Joi.string().optional().allow(""),
         status: Joi.string().valid("Active", "Closed", "Hidden").required(),
         teacherID: Joi.string().hex().length(24).required(),
+        allowReview: Joi.boolean().optional(),
+        randomizeQuestions: Joi.boolean().optional(),
     }).required(),
     questions: Joi.array()
         .items(
@@ -58,6 +60,8 @@ export const publishAIExamValidation = Joi.object({
         status: Joi.string().valid("Active", "Closed", "Hidden").required(),
         teacherID: Joi.string().hex().length(24).required(),
         deletion_at: Joi.any().optional(),
+        allowReview: Joi.boolean().optional(),
+        randomizeQuestions: Joi.boolean().optional(),
     }).required(),
 });
 

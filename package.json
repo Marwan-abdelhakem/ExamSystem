@@ -33,6 +33,7 @@
     "pdf-parse-fork": "^1.2.0",
     "puppeteer": "^25.1.0",
     "streamifier": "^0.1.1",
+    "stripe": "^22.2.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -41,5 +42,4 @@
   "imports": {
     "#/*": "./src/*"
   }
-
 }

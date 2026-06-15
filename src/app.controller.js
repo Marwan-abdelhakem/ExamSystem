@@ -11,6 +11,8 @@ import examSessionRouter from "./Modules/examSession/examSession.controller.js"
 import studentReportRouter from "./Modules/studentReport/studentReport.controller.js"
 import profileRouter from "./Modules/profile/profile.controller.js"
 import studentDashboardRouter from "./Modules/studentDashboard/studentDashboard.controller.js"
+import paymentWebhook from "./Modules/payment/payment.webhook.js"
+import paymentRouter from "./Modules/payment/payment.controller.js"
 import cors from "cors"
 
 
@@ -28,6 +30,7 @@ const corsOptions = {
 };
 
 const bootStrap = async (app, express) => {
+    app.use("/webhook", paymentWebhook);
     app.use(express.json())
     await connectDb()
     app.use(cookieParser());
@@ -43,6 +46,7 @@ const bootStrap = async (app, express) => {
     app.use("/api/student-report", studentReportRouter)
     app.use("/api/profile", profileRouter)
     app.use("/api/student-dashboard", studentDashboardRouter)
+    app.use("/api/payments", paymentRouter)
 
     app.use((req, res, next) => {
     return next(new Error("Not found Handler !!!!", { cause: 404 }))

@@ -143,6 +143,8 @@ export const login = async (req, res, next) => {
         avatar: user.avatar,
         subscription_type: user.subscription_type,
         available_credits: user.available_credits,
+        subscription_credits: user.subscription_credits,
+        purchased_credits: user.purchased_credits,
         role: user.role,
       },
       token,

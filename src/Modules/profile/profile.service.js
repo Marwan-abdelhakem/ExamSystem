@@ -27,6 +27,8 @@ export const getProfile = async (req, res, next) => {
             qualification: user.qualification || null,
             subscription_type: user.subscription_type,
             available_credits: user.available_credits,
+            subscription_credits: user.subscription_credits,
+            purchased_credits: user.purchased_credits,
             subscription_expires_at: user.subscription_expires_at,
             memberSince: user.createdAt,
             preferences: {
@@ -159,4 +161,36 @@ export const deactivateAccount = async (req, res, next) => {
         statusCode: 200,
         message: "Account deactivated successfully",
     });
+};
+
+export const updateCreditsAfterCheckout = async (req, res, next) => {
+    const { available_credits, subscription_credits, purchased_credits, subscription_type } = req.body;
+
+    try {
+        const user = await UserModel.findById(req.user._id);
+        if (!user) {
+            return next(new Error("User not found", { cause: 404 }));
+        }
+
+        if (available_credits !== undefined) user.available_credits = available_credits;
+        if (subscription_credits !== undefined) user.subscription_credits = subscription_credits;
+        if (purchased_credits !== undefined) user.purchased_credits = purchased_credits;
+        if (subscription_type !== undefined) user.subscription_type = subscription_type;
+
+        await user.save();
+
+        return successResponse({
+            res,
+            statusCode: 200,
+            message: "Credits and subscription updated successfully",
+            data: {
+                available_credits: user.available_credits,
+                subscription_credits: user.subscription_credits,
+                purchased_credits: user.purchased_credits,
+                subscription_type: user.subscription_type,
+            },
+        });
+    } catch (error) {
+        return next(error);
+    }
 };

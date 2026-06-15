@@ -28,6 +28,9 @@ router.put("/change-password", validation(changePasswordValidation), profileServ
 // PUT /api/profile/preferences
 router.put("/preferences", validation(preferencesValidation), profileService.updatePreferences);
 
+// PUT /api/profile/checkout
+router.put("/checkout", profileService.updateCreditsAfterCheckout);
+
 // DELETE /api/profile/deactivate  delete account
 router.delete("/deactivate", profileService.deactivateAccount);
 

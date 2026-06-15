@@ -32,6 +32,19 @@ const UserSchema = new Schema(
       default: "https://res.cloudinary.com/dgjw80t8x/image/upload/q_auto/f_auto/v1780575623/mostafamagdy_hsjbw3.png" ,
     },
 
+     stripe_customer_id: {
+  type: String,
+  default: null, 
+},
+stripe_subscription_id: {
+  type: String,
+  default: null, 
+},
+grace_period_ends_at: {
+  type: Date,
+  default: null,
+},
+
     otp: {
       code: {
         type: String,
@@ -56,7 +69,7 @@ const UserSchema = new Schema(
     },
     subscription_type: {
       type: String,
-      enum: ["free", "premium", "institution"],
+      enum: ["free","lite", "premium", "institution"],
       default: "free",
     },
     available_credits: {
@@ -64,6 +77,16 @@ const UserSchema = new Schema(
       default: function () {
         return this.role === "Teacher" ? 50 : 30;
       },
+    },
+    subscription_credits: {
+      type: Number,
+      default: function () {
+        return this.role === "Teacher" ? 0 : 30;
+      },
+    },
+    purchased_credits: {
+      type: Number,
+      default: 0,
     },
     subscription_expires_at: {
       type: Date,
@@ -78,6 +101,36 @@ const UserSchema = new Schema(
     timestamps: true,
   },
 );
+
+UserSchema.pre("save", function () {
+  if (this.isModified("available_credits")) {
+    const oldTotal = (this.subscription_credits || 0) + (this.purchased_credits || 0);
+    const newTotal = this.available_credits;
+    const difference = oldTotal - newTotal;
+
+    if (difference > 0) {
+      let remainingDeduction = difference;
+      if (this.subscription_credits >= remainingDeduction) {
+        this.subscription_credits -= remainingDeduction;
+        remainingDeduction = 0;
+      } else {
+        remainingDeduction -= this.subscription_credits;
+        this.subscription_credits = 0;
+      }
+      if (remainingDeduction > 0) {
+        if (this.purchased_credits >= remainingDeduction) {
+          this.purchased_credits -= remainingDeduction;
+          remainingDeduction = 0;
+        } else {
+          this.purchased_credits = 0;
+          remainingDeduction = 0;
+        }
+      }
+    }
+  }
+
+  this.available_credits = (this.subscription_credits || 0) + (this.purchased_credits || 0);
+});
 
 const UserModel = mongoose.models.User || mongoose.model("User", UserSchema);
 

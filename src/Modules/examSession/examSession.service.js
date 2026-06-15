@@ -4,7 +4,14 @@ import ExamAttemptModel from "../../DB/model/examAttempt.model.js";
 import UserModel from "../../DB/model/user.model.js";
 import successResponse from "../../Utlis/successRespone.utlis.js";
 
-
+function shuffleArray(array) {
+    const arr = [...array];
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+}
 
 export const startExam = async (req, res, next) => {
     const { examId, accessCode } = req.body;
@@ -54,9 +61,12 @@ export const startExam = async (req, res, next) => {
             }
             // Resume unfinished attempt
             const targetExamId = exam.parentExamID || examId;
-            const questions = await QuestionModel.find({ examID: targetExamId }).select(
+            let questions = await QuestionModel.find({ examID: targetExamId }).select(
                 "title options typeQue difficulty cognitiveLevel"
             );
+            if (exam.randomizeQuestions) {
+                questions = shuffleArray(questions);
+            }
             return successResponse({
                 res,
                 statusCode: 200,
@@ -78,9 +88,12 @@ export const startExam = async (req, res, next) => {
 
 
     const targetExamId = exam.parentExamID || examId;
-    const questions = await QuestionModel.find({ examID: targetExamId }).select(
+    let questions = await QuestionModel.find({ examID: targetExamId }).select(
         "title options typeQue difficulty cognitiveLevel"
     );
+    if (exam.randomizeQuestions) {
+        questions = shuffleArray(questions);
+    }
 
     // Deduct 0.5 credits from the teacher if the student is starting a teacher-created exam
     if (!isCreator && exam.teacherID) {
@@ -167,6 +180,10 @@ export const submitExam = async (req, res, next) => {
     attempt.endTime = new Date();
     await attempt.save();
 
+    const exam = await ExamModel.findById(attempt.examID);
+    const isPractice = exam?.teacherID?.toString() === studentID.toString();
+    const allowReview = exam?.allowReview !== false || isPractice;
+
     return successResponse({
         res,
         statusCode: 200,
@@ -176,7 +193,7 @@ export const submitExam = async (req, res, next) => {
             totalQuestions,
             correctAnswers: score,
             percentage,
-            answers: gradedAnswers,
+            answers: allowReview ? gradedAnswers : [],
         },
     });
 };
@@ -193,7 +210,7 @@ export const getAttemptResult = async (req, res, next) => {
         })
         .populate({
             path: "examID",
-            select: "title durationMinutes groupID teacherID createdAt",
+            select: "title durationMinutes groupID teacherID createdAt allowReview",
             populate: {
                 path: "groupID",
                 select: "subject groupName",
@@ -218,18 +235,28 @@ export const getAttemptResult = async (req, res, next) => {
     const percentage =
         totalQuestions > 0 ? Math.round((attempt.totalScore / totalQuestions) * 100) : 0;
 
-    const formattedAnswers = attempt.answers.map((a, index) => ({
-        questionNumber: index + 1,
-        question: a.questionId?.title,
-        options: a.questionId?.options,
-        typeQue: a.questionId?.typeQue,
-        difficulty: a.questionId?.difficulty,
-        cognitiveLevel: a.questionId?.cognitiveLevel,
-        studentAnswer: a.studentAnswer,
-        correctAnswer: a.questionId?.correctAnswer,
-        isCorrect: a.isCorrect,
-        ai_explanation: a.isCorrect ? null : a.questionId?.ai_explanation,
-    }));
+    const isPractice = attempt.examID?.teacherID?.toString() === studentID.toString();
+    const allowReview = attempt.examID?.allowReview !== false || isPractice;
+
+    const formattedAnswers = attempt.answers.map((a, index) => {
+        const questionObj = {
+            questionNumber: index + 1,
+            question: a.questionId?.title,
+            options: a.questionId?.options,
+            typeQue: a.questionId?.typeQue,
+            difficulty: a.questionId?.difficulty,
+            cognitiveLevel: a.questionId?.cognitiveLevel,
+            studentAnswer: a.studentAnswer,
+            isCorrect: a.isCorrect,
+        };
+
+        if (allowReview) {
+            questionObj.correctAnswer = a.questionId?.correctAnswer;
+            questionObj.ai_explanation = a.isCorrect ? null : a.questionId?.ai_explanation;
+        }
+
+        return questionObj;
+    });
 
     return successResponse({
         res,
@@ -238,16 +265,14 @@ export const getAttemptResult = async (req, res, next) => {
         data: {
             exam: {
                 title: attempt.examID?.title,
-                isPractice: attempt.examID?.teacherID?.toString() === studentID.toString(),
+                isPractice,
                 subject: (() => {
-                    const isPractice = attempt.examID?.teacherID?.toString() === studentID.toString();
                     if (isPractice) return "Personal Practice";
                     return Array.isArray(attempt.examID?.groupID)
                         ? attempt.examID.groupID[0]?.subject
                         : attempt.examID?.groupID?.subject;
                 })(),
                 groupName: (() => {
-                    const isPractice = attempt.examID?.teacherID?.toString() === studentID.toString();
                     if (isPractice) return "Practice Exam";
                     return Array.isArray(attempt.examID?.groupID)
                         ? attempt.examID.groupID[0]?.groupName
@@ -255,6 +280,7 @@ export const getAttemptResult = async (req, res, next) => {
                 })(),
                 durationMinutes: attempt.examID?.durationMinutes,
                 date: attempt.startTime,
+                allowReview,
             },
             totalQuestions,
             correctCount,
@@ -263,7 +289,7 @@ export const getAttemptResult = async (req, res, next) => {
             percentage,
             startTime: attempt.startTime,
             endTime: attempt.endTime,
-            answers: formattedAnswers,
+            answers: allowReview ? formattedAnswers : [],
         },
     });
 };

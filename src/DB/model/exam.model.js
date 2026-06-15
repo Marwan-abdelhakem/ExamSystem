@@ -41,6 +41,14 @@ const ExamSchema = new Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Exam",
     },
+    allowReview: {
+      type: Boolean,
+      default: true,
+    },
+    randomizeQuestions: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,

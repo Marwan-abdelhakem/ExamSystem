@@ -214,18 +214,40 @@ async function solverAgent(state) {
     ? await retrieveRelevantChunks(state.draftedQuestions, state.exam_id, 10)
     : state.pdfContext;
 
-  const prompt = `You are an expert exam designer.\n${LANGUAGE_RULES}\nDrafted Questions:\n${state.draftedQuestions}\nContext:\n${context}\nRules:\n1. Same number of questions.\n2. MCQ: 4 options, correctAnswer is one of them.\n3. TF: options=[], correctAnswer must be exactly "True" or "False" as a data value, regardless of document language.\n4. difficulty: Easy|Normal|Hard. measures: Memorization|Creativity|Thinking.\n5. Fill ai_explanation.\nReturn ONLY valid structured data.`;
+  let typeRulesPrompt = "";
+  state.requestedRules.forEach((rule, index) => {
+    typeRulesPrompt += `\n- Question ${index + 1}: Must be type "${rule.type}"`;
+  });
+
+  const prompt = `You are an expert exam designer.\n${LANGUAGE_RULES}\nDrafted Questions:\n${state.draftedQuestions}\nContext:\n${context}\nExpected Question Types:\n${typeRulesPrompt}\nRules:\n1. Same number of questions.\n2. Match the expected type for each question index.\n3. MCQ: 4 options, correctAnswer is one of them.\n4. TF: options=[], correctAnswer must be exactly "True" or "False" as a data value, regardless of document language.\n5. difficulty: Easy|Normal|Hard. measures: Memorization|Creativity|Thinking.\n6. Fill ai_explanation.\nReturn ONLY valid structured data.`;
 
   const response = await structuredLlm.invoke(prompt);
   return { finalExam: response };
 }
 
-function validateExamStructure(exam) {
+function validateExamStructure(exam, requestedRules) {
   if (!exam || !Array.isArray(exam.questions) || exam.questions.length === 0) {
     return { valid: false, reason: "Exam is empty or has no questions" };
   }
 
-  for (const q of exam.questions) {
+  if (exam.questions.length !== requestedRules.length) {
+    return {
+      valid: false,
+      reason: `Exam questions count (${exam.questions.length}) does not match requested count (${requestedRules.length})`,
+    };
+  }
+
+  for (let i = 0; i < exam.questions.length; i++) {
+    const q = exam.questions[i];
+    const rule = requestedRules[i];
+
+    if (q.type !== rule.type) {
+      return {
+        valid: false,
+        reason: `Question ${i + 1} type mismatch: expected ${rule.type}, got ${q.type}`,
+      };
+    }
+
     if (!q.questionText || q.questionText.trim() === "") {
       return { valid: false, reason: "Question text cannot be empty" };
     }
@@ -264,7 +286,7 @@ function validateExamStructure(exam) {
 async function reviewerAgent(state) {
   console.log("🤖 Agent 3: Reviewing Exam...");
 
-  const validation = validateExamStructure(state.finalExam);
+  const validation = validateExamStructure(state.finalExam, state.requestedRules);
 
   if (!validation.valid) {
     console.log("❌ Structure validation failed:", validation.reason);
