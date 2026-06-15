@@ -49,6 +49,24 @@ router.post('/', express.raw({ type: 'application/json' }), async (req, res) => 
           user.grace_period_ends_at = null;
           planLabel = "Student Premium Subscription";
         }
+        
+        else if (priceId === process.env.STRIPE_TEACHER_BASIC_PRICE_ID) {
+          const creditsToAdd = 1000;
+          user.purchased_credits = (user.purchased_credits || 0) + creditsToAdd;
+          user.subscription_type = 'premium';
+          user.stripe_subscription_id = subscriptionId;
+          user.grace_period_ends_at = null;
+          planLabel = "Teacher Premium Subscription";
+        }
+
+        else if (priceId === process.env.STRIPE_TEACHER_PREMIUM_PRICE_ID) {
+          const creditsToAdd = 10000;
+          user.purchased_credits = (user.purchased_credits || 0) + creditsToAdd;
+          user.subscription_type = 'institution';
+          user.stripe_subscription_id = subscriptionId;
+          user.grace_period_ends_at = null;
+          planLabel = "Teacher Institutional Subscription";
+        }
 
         await user.save();
         const invoiceUrl = invoice.hosted_invoice_url || "https://dashboard.stripe.com";

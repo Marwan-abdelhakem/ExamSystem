@@ -239,10 +239,10 @@ export const getGroupDetails = async (req, res, next) => {
         });
       }
 
-      // Fetch active exams assigned to this group
+      // Fetch active/closed exams assigned to this group
       const exams = await ExamModel.find({
         groupID: groupId,
-        status: "Active",
+        status: { $in: ["Active", "Closed"] },
       });
 
       const nowInSeconds = Math.floor(Date.now() / 1000);
@@ -278,11 +278,11 @@ export const getGroupDetails = async (req, res, next) => {
           id: exam._id,
           title: exam.title,
           dueDate: new Date(exam.closingAt * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-          status: isExpired ? "Closed" : (isCompleted ? "Completed" : "Active"),
+          status: exam.status === "Closed" || isExpired ? "Closed" : (isCompleted ? "Completed" : "Active"),
           dueLabel,
           isCompleted,
           attemptId,
-          isAvailable: exam.openingAt <= nowInSeconds,
+          isAvailable: exam.openingAt <= nowInSeconds && exam.status !== "Closed",
           durationMinutes: exam.durationMinutes,
           numOfQuestion: exam.numOfQuestion,
         };

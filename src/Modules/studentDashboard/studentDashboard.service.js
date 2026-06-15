@@ -33,7 +33,7 @@ export const getStudentDashboard = async (req, res, next) => {
 
     const allExams = await ExamModel.find({
         groupID: { $in: groupIds },
-        status: "Active",
+        status: { $in: ["Active", "Closed"] },
     }).populate({ path: "teacherID", select: "name" })
         .populate({ path: "groupID", select: "subject" });
 
@@ -86,7 +86,8 @@ export const getStudentDashboard = async (req, res, next) => {
                 openingAt: exam.openingAt,
                 closingAt: exam.closingAt,
                 dueLabel,
-                isAvailable: exam.openingAt <= nowInSeconds,
+                status: exam.status,
+                isAvailable: exam.openingAt <= nowInSeconds && exam.status !== "Closed",
             };
         })
         .sort((a, b) => a.closingAt - b.closingAt);

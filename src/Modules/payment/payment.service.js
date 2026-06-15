@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import UserModel from '../../DB/model/user.model.js';
 
 dotenv.config();
+// Initialize Stripe client
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 export const createSubscriptionIntent = async (req, res) => {

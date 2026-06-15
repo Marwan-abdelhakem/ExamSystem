@@ -245,7 +245,25 @@ export const getMyExams = async (req, res, next) => {
     const exams = await ExamModel.find({ teacherID: req.user._id })
       .populate("groupID", "groupName subject")
       .sort({ createdAt: -1 });
-    return res.status(200).json({ success: true, data: exams });
+
+    const examsWithDifficulty = await Promise.all(
+      exams.map(async (exam) => {
+        const questions = await QuestionModel.find({ examID: exam._id }).select("difficulty");
+        let difficulty = "Varied";
+        if (questions.length > 0) {
+          const uniqueDifficulties = [...new Set(questions.map((q) => q.difficulty))];
+          if (uniqueDifficulties.length === 1) {
+            difficulty = uniqueDifficulties[0];
+          }
+        }
+        return {
+          ...exam.toObject(),
+          difficulty,
+        };
+      })
+    );
+
+    return res.status(200).json({ success: true, data: examsWithDifficulty });
   } catch (error) {
     return next(error);
   }
