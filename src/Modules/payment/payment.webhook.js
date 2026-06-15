@@ -86,11 +86,9 @@ router.post('/', express.raw({ type: 'application/json' }), async (req, res) => 
           const credits = parseInt(creditsToAdd, 10);
 
           if (user.role === 'Teacher') {
+            user.purchased_credits += credits;
             if (type === 'teacher_plan') {
-              user.subscription_credits = credits;
               user.subscription_type = planName;
-            } else {
-              user.purchased_credits += credits;
             }
           } else if (user.role === 'Student' && type === 'addon_credits') {
             user.purchased_credits += credits;
