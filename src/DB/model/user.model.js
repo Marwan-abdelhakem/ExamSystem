@@ -81,7 +81,7 @@ grace_period_ends_at: {
     subscription_credits: {
       type: Number,
       default: function () {
-        return this.role === "Teacher" ? 0 : 30;
+        return this.role === "Teacher" ? 50 : 30;
       },
     },
     purchased_credits: {
