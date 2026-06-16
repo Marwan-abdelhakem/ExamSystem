@@ -1,15 +1,10 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { HumanMessage } from '@langchain/core/messages';
+import { llm } from "../Modules/exam/exam.pipeline.js"
 
 export const checkCertificateWithAI = async (fileBuffer, mimeType) => {
     try {
         const base64Image = fileBuffer.toString("base64");
-
-        const model = new ChatOpenAI({
-            apiKey: process.env.API_KEY,
-            modelName: "gpt-4o-mini",
-            temperature: 0
-        });
 
         const prompt = `
 You are an expert document verification system. Analyze the uploaded image with extreme strictness.
@@ -29,7 +24,7 @@ Respond with JSON format only (no markdown, no \`\`\`json):
 { "isCertificate": false } -> If it is a certificate of appreciation, training, lacks a stamp, or is any other document.
 `;
 
-        const response = await model.invoke([
+        const response = await llm.invoke([
             new HumanMessage({
                 content: [
                     { type: "text", text: prompt },
@@ -41,11 +36,10 @@ Respond with JSON format only (no markdown, no \`\`\`json):
             }),
         ]);
 
-        // تريكاية صغيرة: ساعات الـ AI بيبعت الـ JSON جواه علامات ```json .. فنشيلها عشان الـ parse ميفقعش إيرور
         const cleanJsonString = response.content.replace(/```json/g, "").replace(/```/g, "").trim();
         const result = JSON.parse(cleanJsonString);
 
-        return result.isCertificate; // هترجع true أو false
+        return result.isCertificate; 
 
     } catch (error) {
         console.error("AI Error:", error);

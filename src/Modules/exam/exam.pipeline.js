@@ -20,15 +20,42 @@ function toObjectId(id) {
    LLM & EMBEDDINGS
 ========================= */
 
+// export const llm = new ChatOpenAI({
+//   model: "gpt-4o-mini",
+//   temperature: 0.1,
+//   apiKey: process.env.API_KEY,
+// });
+
+// const embeddings = new OpenAIEmbeddings({
+//   model: "text-embedding-3-small",
+//   apiKey: process.env.OPENAI_API_KEY,
+// });
+
+
+
 export const llm = new ChatOpenAI({
-  model: "gpt-4o-mini",
+  modelName: "openrouter/free",
   temperature: 0.1,
-  apiKey: process.env.API_KEY,
+  apiKey: process.env.OPENAI_API_KEY,
+  configuration: {
+    baseURL: "https://openrouter.ai/api/v1",
+    defaultHeaders: {
+      "HTTP-Referer": "http://localhost:3000",
+      "X-Title": "Aigentic Exam Generator",
+    },
+  },
 });
 
 export const embeddings = new OpenAIEmbeddings({
-  model: "text-embedding-3-small",
-  apiKey: process.env.API_KEY,
+  modelName: "openai/text-embedding-3-small",
+  apiKey: process.env.OPENAI_API_KEY,
+  configuration: {
+    baseURL: "https://openrouter.ai/api/v1",
+    defaultHeaders: {
+      "HTTP-Referer": "http://localhost:3000",
+      "X-Title": "Aigentic Exam Generator",
+    },
+  },
 });
 
 /* =========================
@@ -104,7 +131,7 @@ export async function splitTextIntoChunks(text) {
 ========================= */
 
 export async function storePdfChunks(pdfText, exam_id) {
-  const client = new MongoClient(process.env.MONGO_URI);
+  const client = new MongoClient(process.env.MONGO_URL);
   const id = toObjectId(exam_id);
 
   try {
@@ -130,7 +157,7 @@ export async function storePdfChunks(pdfText, exam_id) {
 }
 
 export async function retrieveRelevantChunks(query, exam_id, topK = 10) {
-  const client = new MongoClient(process.env.MONGO_URI);
+  const client = new MongoClient(process.env.MONGO_URL);
   const id = toObjectId(exam_id);
 
   try {
