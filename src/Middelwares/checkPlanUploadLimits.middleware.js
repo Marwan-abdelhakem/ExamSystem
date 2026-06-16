@@ -15,18 +15,21 @@ export const checkPlanUploadLimits = (req, res, next) => {
     `👤 User Plan: ${plan} | Uploaded File Size: ${fileSizeInMB.toFixed(2)} MB`,
   );
 
-  if (plan === "free" && fileSizeInMB > 5) {
+  const limits = {
+    free: 5,
+    lite: 10,
+    premium: 20,
+    institution: 20,
+  };
+
+  const maxMB = limits[plan] ?? 5; // default to free limit for unknown plans
+
+  if (fileSizeInMB > maxMB) {
     return res.status(400).json({
-      error: "Limit Exceeded",
-      message: `Free accounts are limited to 5MB per PDF. Your file is ${fileSizeInMB.toFixed(2)} MB. Please upgrade to Premium.`,
+      error: "File size limit exceeded.",
+      message: `Your plan (${plan}) allows up to ${maxMB}MB per PDF. Your file is ${fileSizeInMB.toFixed(2)} MB. Please upgrade your plan or use a smaller file.`,
     });
   }
 
-  if (plan === "premium" && fileSizeInMB > 20) {
-    return res.status(400).json({
-      error: "Limit Exceeded",
-      message: `Premium accounts are limited to 20MB per PDF. Your file is ${fileSizeInMB.toFixed(2)} MB.`,
-    });
-  }
   next();
 };

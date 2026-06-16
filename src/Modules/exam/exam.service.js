@@ -89,10 +89,28 @@ export const uploadPDF = async (req, res) => {
   const file = req.file;
   if (!file) return res.status(400).json({ error: "Missing pdfFile in request." });
 
+  // Validate PDF magic bytes (%PDF-)
+  if (!file.buffer || file.buffer.length < 5 || file.buffer.slice(0, 5).toString() !== "%PDF-") {
+    return res.status(400).json({
+      error: "Invalid file format.",
+      message: "The uploaded file does not appear to be a valid PDF. Please upload a proper PDF file.",
+    });
+  }
+
+  let pdfData;
   try {
-    const pdfData = await pdfParse(file.buffer);
+    pdfData = await pdfParse(file.buffer);
+  } catch (parseError) {
+    console.error("❌ PDF Parse Failed:", parseError.message);
+    return res.status(400).json({
+      error: "Failed to parse PDF.",
+      message: "The PDF file appears to be corrupted or uses an unsupported format. Please try a different file.",
+    });
+  }
+
+  try {
     const rawText = pdfData.text;
-    if (!rawText || rawText.trim() === "") return res.status(400).json({ error: "Failed to extract text from PDF." });
+    if (!rawText || rawText.trim() === "") return res.status(400).json({ error: "Failed to extract text from PDF.", message: "The PDF file contains no readable text. Please upload a text-based PDF (not a scanned image)." });
 
     const chunks = await splitTextIntoChunks(rawText);
     console.log(`📦 Total Chunks: ${chunks.length}`);
@@ -110,6 +128,7 @@ export const uploadPDF = async (req, res) => {
     return res.status(500).json({ success: false, error: error.message });
   }
 };
+
 
 /* =========================
    SERVICE: GENERATE MANUALLY
