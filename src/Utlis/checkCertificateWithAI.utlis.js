@@ -39,10 +39,10 @@ Respond with JSON format only (no markdown, no \`\`\`json):
         const cleanJsonString = response.content.replace(/```json/g, "").replace(/```/g, "").trim();
         const result = JSON.parse(cleanJsonString);
 
-        return result.isCertificate; 
+        return result.isCertificate;
 
     } catch (error) {
         console.error("AI Error:", error);
-        throw new Error("حصلت مشكلة أثناء فحص الشهادة بالذكاء الاصطناعي");
+        throw new Error("problem occured while checking certificate");
     }
 };

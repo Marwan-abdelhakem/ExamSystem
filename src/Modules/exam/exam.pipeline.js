@@ -26,16 +26,14 @@ function toObjectId(id) {
 //   apiKey: process.env.API_KEY,
 // });
 
-// const embeddings = new OpenAIEmbeddings({
+// export const embeddings = new OpenAIEmbeddings({
 //   model: "text-embedding-3-small",
-//   apiKey: process.env.OPENAI_API_KEY,
+//   apiKey: process.env.API_KEY,
 // });
-
-
 
 export const llm = new ChatOpenAI({
   modelName: "openrouter/free",
-  temperature: 0.1,
+  temperature: 0.2,
   apiKey: process.env.OPENAI_API_KEY,
   configuration: {
     baseURL: "https://openrouter.ai/api/v1",
