@@ -48,41 +48,41 @@ export const startExam = async (req, res, next) => {
         return next(new Error("Exam has already closed", { cause: 403 }));
     }
 
-    const existingAttempt = await ExamAttemptModel.findOne({ examID: examId, studentID });
-    if (existingAttempt) {
-        // Practice exam (student owns the exam) → allow unlimited retakes
-        if (isCreator) {
-            // Delete old attempt so a fresh one can be created below
-            await ExamAttemptModel.deleteOne({ _id: existingAttempt._id });
-        } else {
-            // Teacher exam → one attempt only
-            if (existingAttempt.endTime) {
-                return next(new Error("You have already submitted this exam", { cause: 409 }));
-            }
-            // Resume unfinished attempt
-            const targetExamId = exam.parentExamID || examId;
-            let questions = await QuestionModel.find({ examID: targetExamId }).select(
-                "title options typeQue difficulty cognitiveLevel"
-            );
-            if (exam.randomizeQuestions) {
-                questions = shuffleArray(questions);
-            }
-            return successResponse({
-                res,
-                statusCode: 200,
-                message: "Exam resumed successfully",
-                data: {
-                    attemptId: existingAttempt._id,
-                    exam: {
-                        title: exam.title,
-                        durationMinutes: exam.durationMinutes,
-                        numOfQuestion: exam.numOfQuestion,
-                        closingAt: exam.closingAt,
-                        subject: Array.isArray(exam.groupID) ? exam.groupID[0]?.subject : exam.groupID?.subject,
-                    },
-                    questions,
+    // Check if there is an active (unfinished) attempt to resume
+    const activeAttempt = await ExamAttemptModel.findOne({ examID: examId, studentID, endTime: { $exists: false } });
+    if (activeAttempt) {
+        // Resume unfinished attempt
+        const targetExamId = exam.parentExamID || examId;
+        let questions = await QuestionModel.find({ examID: targetExamId }).select(
+            "title options typeQue difficulty cognitiveLevel"
+        );
+        if (exam.randomizeQuestions) {
+            questions = shuffleArray(questions);
+        }
+        return successResponse({
+            res,
+            statusCode: 200,
+            message: "Exam resumed successfully",
+            data: {
+                attemptId: activeAttempt._id,
+                startTime: activeAttempt.startTime,
+                exam: {
+                    title: exam.title,
+                    durationMinutes: exam.durationMinutes,
+                    numOfQuestion: exam.numOfQuestion,
+                    closingAt: exam.closingAt,
+                    subject: Array.isArray(exam.groupID) ? exam.groupID[0]?.subject : exam.groupID?.subject,
                 },
-            });
+                questions,
+            },
+        });
+    }
+
+    // No active attempt. Check if they already submitted this exam before
+    if (!isCreator) {
+        const finishedAttempt = await ExamAttemptModel.findOne({ examID: examId, studentID, endTime: { $exists: true } });
+        if (finishedAttempt) {
+            return next(new Error("You have already submitted this exam", { cause: 409 }));
         }
     }
 
@@ -117,6 +117,7 @@ export const startExam = async (req, res, next) => {
         message: "Exam started successfully",
         data: {
             attemptId: attempt._id,
+            startTime: attempt.startTime,
             exam: {
                 title: exam.title,
                 durationMinutes: exam.durationMinutes,
