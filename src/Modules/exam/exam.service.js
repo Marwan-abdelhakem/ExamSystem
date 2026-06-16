@@ -67,9 +67,7 @@ export const generateExam = async (req, res) => {
     }));
 
     const savedQuestions = await QuestionModel.insertMany(questionsToSave);
-    user.available_credits -= examCost;
-    await user.save();
-    console.log(`💾 Saved ${savedQuestions.length} questions | 💸 New Balance: ${user.available_credits}`);
+    console.log(`💾 Saved ${savedQuestions.length} questions | 💸 Current Balance: ${user.available_credits}`);
 
     return res.status(200).json({
       verdict: finalState.reviewVerdict,
@@ -180,18 +178,25 @@ export const publishAIExam = async (req, res, next) => {
     const user = await UserModel.findById(examDetails.teacherID);
     if (!user) return next(new Error("User Not Found"));
 
+    const numOfQuestion = await QuestionModel.countDocuments({ examID: examId });
+    
+    // Calculate keep forever cost if applicable
     const isKeepForever = !examDetails.deletion_at;
+    let keepForeverDeduction = 0;
     if (isKeepForever && user.subscription_type !== "free") {
-      const deductionAmount = user.role === "Student" ? 10 : 15;
-      if (user.available_credits < deductionAmount) {
-        return next(new Error(`Insufficient credits to keep exam forever. You need ${deductionAmount} credits, but you only have ${user.available_credits}.`));
-      }
-      user.available_credits -= deductionAmount;
-      await user.save();
-      console.log(`💸 Deducted ${deductionAmount} credits from ${user.name} to keep exam forever. New balance: ${user.available_credits}`);
+      keepForeverDeduction = user.role === "Student" ? 10 : 15;
     }
 
-    const numOfQuestion = await QuestionModel.countDocuments({ examID: examId });
+    const totalDeduction = numOfQuestion + keepForeverDeduction;
+
+    if (user.available_credits < totalDeduction) {
+      return next(new Error(`Insufficient credits. You need ${totalDeduction} credits (Generation: ${numOfQuestion}, Keep Forever: ${keepForeverDeduction}), but you only have ${user.available_credits}.`));
+    }
+
+    user.available_credits -= totalDeduction;
+    await user.save();
+    console.log(`💸 Deducted ${totalDeduction} credits from ${user.name} (Generation: ${numOfQuestion}, Keep Forever: ${keepForeverDeduction}). New balance: ${user.available_credits}`);
+
     const exam = await ExamModel.create({
       _id: examId,
       ...examDetails,

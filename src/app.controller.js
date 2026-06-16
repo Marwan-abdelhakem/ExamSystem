@@ -16,7 +16,13 @@ import paymentRouter from "./Modules/payment/payment.controller.js"
 import cors from "cors"
 
 
-const allowedOrigins = ["http://localhost:5173", "http://localhost:5172", "http://localhost:3000"];
+const allowedOrigins = [
+    "http://localhost:5173", 
+    "http://localhost:5172", 
+    "http://localhost:3000",
+    "https://exam.tawseela-sina.com",
+    "https://acdemix.tawseela-sina.com"
+];
 
 const corsOptions = {
     origin: (origin, callback) => {
