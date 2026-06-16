@@ -1,3 +1,6 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import { OpenAIEmbeddings } from "@langchain/openai";
 import { ChatGroq } from "@langchain/groq";
@@ -20,6 +23,17 @@ function toObjectId(id) {
 /* =========================
    LLM & EMBEDDINGS
 ========================= */
+
+// export const llm = new ChatOpenAI({
+//   model: "gpt-4o-mini",
+//   temperature: 0.1,
+//   apiKey: process.env.API_KEY,
+// });
+
+// export const embeddings = new OpenAIEmbeddings({
+//   model: "text-embedding-3-small",
+//   apiKey: process.env.API_KEY,
+// });
 
 // LLM: Groq — llama-3.3-70b-versatile
 // Free tier: 1,000 requests/day | 6,000 tokens/min

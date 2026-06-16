@@ -12,7 +12,8 @@ const PDFChunkSchema = new mongoose.Schema({
     },
     embedding: {
         type: [Number],
-        required: true,
+        required: false,
+        default: [],
     },
 });
 

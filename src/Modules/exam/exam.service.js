@@ -116,10 +116,9 @@ export const uploadPDF = async (req, res) => {
     console.log(`📦 Total Chunks: ${chunks.length}`);
 
     const examId = new mongoose.Types.ObjectId();
-    for (const chunk of chunks) {
-      const vector = await embeddings.embedQuery(chunk);
-      await PDFChunk.create({ exam_id: examId, chunk_text: chunk, embedding: vector });
-    }
+    // Store chunks without embeddings (OpenRouter embeddings removed — not needed for direct context)
+    await PDFChunk.insertMany(chunks.map(chunk => ({ exam_id: examId, chunk_text: chunk, embedding: [] })));
+
 
     console.log("✅ PDF Uploaded Successfully");
     return res.status(201).json({ success: true, message: "PDF processed and stored.", examId, chunksCount: chunks.length });
