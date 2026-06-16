@@ -1,5 +1,6 @@
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
-import { ChatOpenAI, OpenAIEmbeddings } from "@langchain/openai";
+import { OpenAIEmbeddings } from "@langchain/openai";
+import { ChatGroq } from "@langchain/groq";
 import { StateGraph, END, START } from "@langchain/langgraph";
 import { ExamSchema } from "./exam.validation.js";
 import { MongoClient, ObjectId } from "mongodb";
@@ -20,30 +21,15 @@ function toObjectId(id) {
    LLM & EMBEDDINGS
 ========================= */
 
-// export const llm = new ChatOpenAI({
-//   model: "gpt-4o-mini",
-//   temperature: 0.1,
-//   apiKey: process.env.API_KEY,
-// });
-
-// export const embeddings = new OpenAIEmbeddings({
-//   model: "text-embedding-3-small",
-//   apiKey: process.env.API_KEY,
-// });
-
-export const llm = new ChatOpenAI({
-  modelName: "openrouter/free",
+// LLM: Groq — llama-3.3-70b-versatile
+// Free tier: 1,000 requests/day | 6,000 tokens/min
+export const llm = new ChatGroq({
+  model: "llama-3.3-70b-versatile",
   temperature: 0.2,
-  apiKey: process.env.OPENAI_API_KEY,
-  configuration: {
-    baseURL: "https://openrouter.ai/api/v1",
-    defaultHeaders: {
-      "HTTP-Referer": "http://localhost:3000",
-      "X-Title": "Aigentic Exam Generator",
-    },
-  },
+  apiKey: process.env.GROQ_API_KEY,
 });
 
+// Embeddings: OpenRouter (separate rate limit from LLM)
 export const embeddings = new OpenAIEmbeddings({
   modelName: "openai/text-embedding-3-small",
   apiKey: process.env.OPENAI_API_KEY,
@@ -55,6 +41,7 @@ export const embeddings = new OpenAIEmbeddings({
     },
   },
 });
+
 
 /* =========================
    COGNITIVE MATRIX
