@@ -16,6 +16,7 @@ import {
   getMyExams,
   downloadExamPDF,
   updateExamStatus,
+  toggleKeepForever,
 } from "./exam.service.js";
 import { checkPlanUploadLimits } from "../../Middelwares/checkPlanUploadLimits.middleware.js";
 
@@ -53,6 +54,7 @@ router.post(
 );
 router.get("/myExams", authentication, getMyExams);
 router.patch("/:examId/status", authentication, updateExamStatus);
+router.patch("/:examId/toggle-keep-forever", authentication, toggleKeepForever);
 router.get("/:examId/download-pdf", authentication, downloadExamPDF);
 
 export default router;

@@ -273,3 +273,77 @@ export const getMyExams = async (req, res, next) => {
     return next(error);
   }
 };
+
+/* =========================
+   SERVICE: TOGGLE KEEP FOREVER
+========================= */
+
+export const toggleKeepForever = async (req, res, next) => {
+  const { examId } = req.params;
+  const userId = req.user._id;
+
+  try {
+    const exam = await ExamModel.findOne({ _id: examId, teacherID: userId });
+    if (!exam) return res.status(404).json({ error: "Exam not found or unauthorized." });
+
+    const user = await UserModel.findById(userId);
+    if (!user) return res.status(404).json({ error: "User not found." });
+
+    const currentlyPermanent = !exam.deletion_at;
+
+    if (currentlyPermanent) {
+      // Cancel Keep Forever -> Set expiration date (e.g. user.subscription_expires_at or end of the current month)
+      let deletionDate = user.subscription_expires_at;
+      if (!deletionDate || new Date(deletionDate) <= new Date()) {
+        // Fallback to the end of the current month
+        deletionDate = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0, 23, 59, 59);
+      }
+
+      exam.deletion_at = deletionDate;
+      await exam.save();
+
+      return res.status(200).json({
+        success: true,
+        message: `Keep Forever cancelled. The exam will now expire and be deleted on ${deletionDate.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}.`,
+        deletion_at: exam.deletion_at,
+        isPermanent: false,
+      });
+    } else {
+      // Enable Keep Forever -> Charge credits (10 for Student, 15 for Teacher)
+      const isStudent = user.role === "Student";
+      const cost = isStudent ? 10 : 15;
+
+      if (user.subscription_type === "free") {
+        return res.status(400).json({
+          error: "Action not allowed",
+          message: "Free tier users cannot keep exams forever. Please upgrade your plan."
+        });
+      }
+
+      if (user.available_credits < cost) {
+        return res.status(400).json({
+          error: "Insufficient credits",
+          message: `Re-enabling Keep Forever costs ${cost} credits, but you only have ${user.available_credits}.`
+        });
+      }
+
+      user.available_credits -= cost;
+      await user.save();
+
+      // In Mongoose, setting to undefined removes the key or we can set $unset in MongoDB.
+      // But to be sure, let's do:
+      exam.deletion_at = undefined;
+      await exam.save();
+
+      return res.status(200).json({
+        success: true,
+        message: "Exam set to Keep Forever successfully.",
+        deletion_at: null,
+        isPermanent: true,
+        remainingCredits: user.available_credits,
+      });
+    }
+  } catch (error) {
+    return next(error);
+  }
+};
