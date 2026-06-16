@@ -51,7 +51,8 @@ export const generateExam = async (req, res) => {
     console.log(`🎯 Smart Context: ${selectedChunks.length}/${totalChunks} chunks | ${fullPDFText.length} chars`);
 
     const dynamicRules = generateExamRulesDynamically(totalQuestions, mcqCount, difficulty);
-    const finalState = await examWorkflow.invoke({ examId, pdfContext: fullPDFText, requestedRules: dynamicRules });
+    // Pass pdfContext directly — avoids vector search (retrieveRelevantChunks) which requires paid embeddings
+    const finalState = await examWorkflow.invoke({ pdfContext: fullPDFText, requestedRules: dynamicRules });
 
     console.log("✅ Exam Generated Successfully");
 
@@ -116,7 +117,7 @@ export const uploadPDF = async (req, res) => {
     console.log(`📦 Total Chunks: ${chunks.length}`);
 
     const examId = new mongoose.Types.ObjectId();
-    // Store chunks without embeddings (OpenRouter embeddings removed — not needed for direct context)
+    // Store chunks as plain text — no embeddings needed (pipeline uses smart context sampling)
     await PDFChunk.insertMany(chunks.map(chunk => ({ exam_id: examId, chunk_text: chunk, embedding: [] })));
 
 

@@ -35,26 +35,24 @@ function toObjectId(id) {
 //   apiKey: process.env.API_KEY,
 // });
 
-// LLM: Groq — llama-3.3-70b-versatile
-// Free tier: 1,000 requests/day | 6,000 tokens/min
 export const llm = new ChatGroq({
   model: "llama-3.3-70b-versatile",
   temperature: 0.2,
   apiKey: process.env.GROQ_API_KEY,
 });
 
-// Embeddings: OpenRouter (separate rate limit from LLM)
 export const embeddings = new OpenAIEmbeddings({
-  modelName: "openai/text-embedding-3-small",
-  apiKey: process.env.OPENAI_API_KEY,
+  modelName: "@cf/baai/bge-large-en-v1.5", 
+  apiKey: process.env.CLOUDFLARE_API_TOKEN,
   configuration: {
-    baseURL: "https://openrouter.ai/api/v1",
+    baseURL: "https://cloudflare.com", 
     defaultHeaders: {
       "HTTP-Referer": "http://localhost:3000",
       "X-Title": "Aigentic Exam Generator",
     },
   },
 });
+
 
 
 /* =========================
