@@ -279,6 +279,7 @@ export const getAttemptResult = async (req, res, next) => {
         message: "Result fetched successfully",
         data: {
             exam: {
+                id: attempt.examID?._id,
                 title: attempt.examID?.title,
                 isPractice,
                 subject: (() => {
