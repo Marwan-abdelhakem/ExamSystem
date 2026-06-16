@@ -202,6 +202,7 @@ export const publishAIExam = async (req, res, next) => {
       ...examDetails,
       numOfQuestion,
       groupID: groupIDsArray,
+      paidKeepForever: isKeepForever && user.subscription_type !== "free",
     });
 
     return res.status(201).json({
@@ -309,7 +310,21 @@ export const toggleKeepForever = async (req, res, next) => {
         isPermanent: false,
       });
     } else {
-      // Enable Keep Forever -> Charge credits (10 for Student, 15 for Teacher)
+      // Enable Keep Forever -> Charge credits ONLY if they haven't paid yet!
+      if (exam.paidKeepForever) {
+        exam.deletion_at = undefined;
+        await exam.save();
+
+        return res.status(200).json({
+          success: true,
+          message: "Exam set to Keep Forever successfully (Re-activated, no credits deducted).",
+          deletion_at: null,
+          isPermanent: true,
+          remainingCredits: user.available_credits,
+        });
+      }
+
+      // First time enabling Keep Forever -> Charge credits (10 for Student, 15 for Teacher)
       const isStudent = user.role === "Student";
       const cost = isStudent ? 10 : 15;
 
@@ -330,9 +345,8 @@ export const toggleKeepForever = async (req, res, next) => {
       user.available_credits -= cost;
       await user.save();
 
-      // In Mongoose, setting to undefined removes the key or we can set $unset in MongoDB.
-      // But to be sure, let's do:
       exam.deletion_at = undefined;
+      exam.paidKeepForever = true; // Mark as paid so they aren't charged again
       await exam.save();
 
       return res.status(200).json({

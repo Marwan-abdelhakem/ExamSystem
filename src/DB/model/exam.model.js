@@ -49,6 +49,10 @@ const ExamSchema = new Schema(
       type: Boolean,
       default: false,
     },
+    paidKeepForever: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,
