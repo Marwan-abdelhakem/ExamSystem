@@ -297,11 +297,45 @@ function validateExamStructure(exam, requestedRules) {
           valid: false,
           reason: "MCQ options must not contain duplicates",
         };
-      if (!q.options.includes(q.correctAnswer))
+      // Self-healing of correctAnswer to align it with option text
+      let ans = q.correctAnswer?.toString().trim();
+      let opts = q.options.map(opt => opt?.toString().trim());
+
+      // If strict match fails, try healing
+      if (!opts.includes(ans)) {
+        // Try case-insensitive matching
+        const matchIdx = opts.findIndex(opt => opt.toLowerCase() === ans.toLowerCase());
+        if (matchIdx !== -1) {
+          q.correctAnswer = q.options[matchIdx]; 
+        } else {
+          // Try letter index matching (A, B, C, D) or Arabic letters
+          const letterMap = { a: 0, b: 1, c: 2, d: 3, "أ": 0, "ب": 1, "ج": 2, "د": 3 };
+          const idx = letterMap[ans.toLowerCase()];
+          if (idx !== undefined && q.options[idx]) {
+            q.correctAnswer = q.options[idx];
+          } else {
+            // Try numeric index matching (1, 2, 3, 4)
+            const numIdx = parseInt(ans, 10);
+            if (!isNaN(numIdx) && numIdx >= 1 && numIdx <= 4 && q.options[numIdx - 1]) {
+              q.correctAnswer = q.options[numIdx - 1];
+            } else {
+              // Try prefix/substring matching
+              const prefixMatchIdx = opts.findIndex(opt => ans.includes(opt) || opt.includes(ans));
+              if (prefixMatchIdx !== -1) {
+                q.correctAnswer = q.options[prefixMatchIdx];
+              }
+            }
+          }
+        }
+      }
+
+      // Re-verify after healing attempts
+      if (!q.options.includes(q.correctAnswer)) {
         return {
           valid: false,
-          reason: "MCQ correctAnswer must exist in options",
+          reason: `MCQ correctAnswer "${q.correctAnswer}" must exist in options: [${q.options.join(", ")}]`,
         };
+      }
     }
   }
 

@@ -1,5 +1,5 @@
 import { verifyTokin } from "../Utlis/token.utlis.js";
-import UserModel from "../DB/model/User.model.js";
+import UserModel from "../DB/model/user.model.js";
 
 export const authentication = async (req, res, next) => {
     let token = req.headers.authorization || req.cookies.accessToken;
