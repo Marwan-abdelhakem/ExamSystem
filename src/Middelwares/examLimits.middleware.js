@@ -8,11 +8,13 @@ export const checkExamLimits = (req, res, next) => {
       .json({ error: "Unauthorized. User role not found." });
   }
 
-  if (userRole === "Student" && totalQuestions > 10) {
+  const isFreeTier = !req.user?.subscription_type || req.user.subscription_type === "free";
+
+  if (userRole === "Student" && isFreeTier && totalQuestions > 10) {
     return res.status(400).json({
       error: "Limit Exceeded",
       message:
-        "Students are only allowed to generate up to 10 questions for self-practice.",
+        "Students on the free tier are only allowed to generate up to 10 questions for self-practice.",
     });
   }
 
