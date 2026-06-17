@@ -54,6 +54,13 @@ const bootStrap = async (app, express) => {
     app.use("/api/student-dashboard", studentDashboardRouter)
     app.use("/api/payments", paymentRouter)
 
+    app.get("/", (req, res) => {
+        return res.status(200).json({
+            message: "Welcome to Acdemix Exam System API",
+            status: "Running"
+        });
+    });
+
     app.use((req, res, next) => {
     return next(new Error("Not found Handler !!!!", { cause: 404 }))
 })

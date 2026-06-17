@@ -107,8 +107,13 @@ export const downloadExamPDF = async (req, res, next) => {
       return buffer;
     });
 
+    const filename = `${exam.title.replace(/\s+/g, "_")}_Exam.pdf`;
+    const asciiFilename = filename.replace(/[^a-zA-Z0-9._-]/g, "_").replace(/_+/g, "_");
+    const fallbackFilename = asciiFilename.trim() && asciiFilename !== "_Exam.pdf" ? asciiFilename : "Exam.pdf";
+    const encodedFilename = encodeURIComponent(filename);
+
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `attachment; filename=${exam.title.replace(/\s+/g, "_")}_Exam.pdf`);
+    res.setHeader("Content-Disposition", `attachment; filename="${fallbackFilename}"; filename*=UTF-8''${encodedFilename}`);
     return res.send(pdfBuffer);
   } catch (error) {
     console.error("❌ PDF Generation Failed:", error.message);

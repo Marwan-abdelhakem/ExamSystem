@@ -24,3 +24,8 @@ export const acceptRejectedStudentValidation = joi.object({
   requestId: joi.string().required(),
   groupId: joi.string().optional(),
 })
+
+export const updateGroupValidation = joi.object({
+  groupName: joi.string().optional().min(2).max(20).trim(),
+  subject: joi.string().optional().min(2).max(20).trim(),
+});

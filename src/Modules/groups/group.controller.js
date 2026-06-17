@@ -8,6 +8,7 @@ import {
   teacherAcceptRejectRequestValidation,
   acceptRejectedStudentValidation,
   addStudentToGroupValidation,
+  updateGroupValidation,
 } from "./group.validation.js";
 
 const router = express.Router();
@@ -58,4 +59,6 @@ router.get(
 router.get("/:groupId", groupService.getGroupDetails);
 router.delete("/:groupId/students/:studentId", groupService.removeStudentFromGroup);
 router.post("/:groupId/addStudent", groupService.addStudentToGroupDetail);
+router.delete("/:groupId", groupService.deleteGroup);
+router.patch("/:groupId", validation(updateGroupValidation), groupService.updateGroup);
 export default router;

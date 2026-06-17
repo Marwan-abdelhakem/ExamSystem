@@ -47,7 +47,7 @@ export const embeddings = new OpenAIEmbeddings({
   configuration: {
     baseURL: "https://cloudflare.com", 
     defaultHeaders: {
-      "HTTP-Referer": "http://localhost:3000",
+      "HTTP-Referer": process.env.BACKEND_URL || "http://localhost:3000",
       "X-Title": "Aigentic Exam Generator",
     },
   },

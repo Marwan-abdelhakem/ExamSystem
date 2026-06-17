@@ -42,7 +42,10 @@ export const getTeacherDashboard = async (req, res, next) => {
     // Calculate Average Cohort Score
     const exams = await ExamModel.find({ teacherID });
     const examIds = exams.map(e => e._id);
-    const attempts = await ExamAttemptModel.find({ examID: { $in: examIds } });
+    const attempts = await ExamAttemptModel.find({ 
+      examID: { $in: examIds },
+      endTime: { $exists: true, $ne: null }
+    });
     
     let averageCohortScore = 0;
     if (attempts.length > 0) {

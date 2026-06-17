@@ -226,6 +226,7 @@ export const getGroupDetails = async (req, res, next) => {
     const { groupId } = req.params;
     const userId = req.user.id || req.user._id;
     const userRole = req.user.role;
+    const nowInSeconds = Math.floor(Date.now() / 1000);
 
     if (userRole === "Student") {
       const group = await Group.findOne({
@@ -245,8 +246,6 @@ export const getGroupDetails = async (req, res, next) => {
         status: { $in: ["Active", "Closed"] },
       });
 
-      const nowInSeconds = Math.floor(Date.now() / 1000);
-      
       const pendingExamsCount = exams.filter(
         (exam) => exam.closingAt > nowInSeconds
       ).length;
@@ -327,13 +326,14 @@ export const getGroupDetails = async (req, res, next) => {
       exams.map(async (exam) => {
         const submissionsCount = await ExamAttemptModel.countDocuments({
           examID: exam._id,
-          studentID: { $in: studentIds }
+          studentID: { $in: studentIds },
+          endTime: { $exists: true, $ne: null }
         });
 
         return {
           id: exam._id,
           title: exam.title,
-          dueDate: new Date(exam.closingAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+          dueDate: new Date(exam.closingAt * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
           status: exam.status,
           submissions: submissionsCount,
           totalStudents: studentIds.length,
@@ -344,7 +344,8 @@ export const getGroupDetails = async (req, res, next) => {
     // Calculate group statistics
     const attempts = await ExamAttemptModel.find({
       examID: { $in: exams.map((e) => e._id) },
-      studentID: { $in: studentIds }
+      studentID: { $in: studentIds },
+      endTime: { $exists: true, $ne: null }
     });
 
     let avgPerformance = 0;
@@ -366,6 +367,52 @@ export const getGroupDetails = async (req, res, next) => {
       : 0;
     const pendingSubmissions = totalPossibleSubmissions - totalSubmissions;
 
+    // Calculate dynamic AI recommendations count
+    let aiRecommendationsCount = 0;
+    if (group.pendingStudents && group.pendingStudents.length > 0) {
+      aiRecommendationsCount += group.pendingStudents.length;
+    }
+    if (exams.length > 0 && attempts.length > 0) {
+      exams.forEach((exam) => {
+        const examAttempts = attempts.filter((a) => a.examID.toString() === exam._id.toString());
+        if (examAttempts.length > 0) {
+          const totalScorePercent = examAttempts.reduce((sum, attempt) => {
+            const maxScore = exam.numOfQuestion || 10;
+            return sum + (attempt.totalScore / maxScore) * 100;
+          }, 0);
+          const avgScore = totalScorePercent / examAttempts.length;
+          if (avgScore < 60) {
+            aiRecommendationsCount += 1;
+          }
+        }
+      });
+    }
+    if (studentIds.length > 0 && attempts.length > 0) {
+      studentIds.forEach((studentId) => {
+        const studentAttempts = attempts.filter((a) => a.studentID.toString() === studentId.toString());
+        if (studentAttempts.length > 0) {
+          const totalScorePercent = studentAttempts.reduce((sum, attempt) => {
+            const exam = exams.find((e) => e._id.toString() === attempt.examID.toString());
+            const maxScore = exam ? exam.numOfQuestion : 10;
+            return sum + (attempt.totalScore / (maxScore || 10)) * 100;
+          }, 0);
+          const avgScore = totalScorePercent / studentAttempts.length;
+          if (avgScore < 60) {
+            aiRecommendationsCount += 1;
+          }
+        }
+      });
+    }
+    exams.forEach((exam) => {
+      const isClosingSoon = exam.closingAt - nowInSeconds > 0 && exam.closingAt - nowInSeconds < 2 * 24 * 60 * 60;
+      if (isClosingSoon) {
+        const examSubmissions = attempts.filter((a) => a.examID.toString() === exam._id.toString()).length;
+        if (examSubmissions < studentIds.length) {
+          aiRecommendationsCount += 1;
+        }
+      }
+    });
+
     return successResponse({
       res,
       message: "Group details fetched successfully",
@@ -382,7 +429,7 @@ export const getGroupDetails = async (req, res, next) => {
           avgPerformance,
           completionRate,
           pendingSubmissions: pendingSubmissions > 0 ? pendingSubmissions : 0,
-          aiRecommendationsCount: exams.length > 0 ? 3 : 0,
+          aiRecommendationsCount,
         }
       },
     });
@@ -461,6 +508,48 @@ export const addStudentToGroupDetail = async (req, res, next) => {
           email: student.email,
         },
       },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteGroup = async (req, res, next) => {
+  try {
+    const { groupId } = req.params;
+    const teacherId = req.user.id;
+
+    const group = await Group.findOneAndDelete({ _id: groupId, teacher: teacherId });
+    if (!group) return next(new Error("Group Not Found"));
+
+    return successResponse({
+      res,
+      message: "Group Deleted Successfully",
+      data: group,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateGroup = async (req, res, next) => {
+  try {
+    const { groupId } = req.params;
+    const { groupName, subject } = req.body;
+    const teacherId = req.user.id;
+
+    const group = await Group.findOne({ _id: groupId, teacher: teacherId });
+    if (!group) return next(new Error("Group Not Found"));
+
+    if (groupName) group.groupName = groupName;
+    if (subject) group.subject = subject;
+
+    await group.save();
+
+    return successResponse({
+      res,
+      message: "Group Updated Successfully",
+      data: group,
     });
   } catch (error) {
     next(error);

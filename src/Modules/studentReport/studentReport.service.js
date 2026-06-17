@@ -110,7 +110,7 @@ export const getStudentReport = async (req, res, next) => {
         return {
             attemptId: attempt._id,
             examTitle: attempt.examID?.title,
-            subject: Array.isArray(attempt.examID?.groupID) ? attempt.examID.groupID[0]?.subject : attempt.examID?.groupID?.subject,
+            subject: (Array.isArray(attempt.examID?.groupID) && attempt.examID.groupID.length > 0 ? attempt.examID.groupID[0]?.subject : attempt.examID?.groupID?.subject) || "General Practice",
             date: attempt.startTime,
             score: attempt.totalScore,
             totalQuestions: totalQ,
@@ -123,7 +123,7 @@ export const getStudentReport = async (req, res, next) => {
 
     const subjectMap = {};
     attempts.forEach((attempt) => {
-        const subject = (Array.isArray(attempt.examID?.groupID) ? attempt.examID.groupID[0]?.subject : attempt.examID?.groupID?.subject) || "Unknown";
+        const subject = (Array.isArray(attempt.examID?.groupID) && attempt.examID.groupID.length > 0 ? attempt.examID.groupID[0]?.subject : attempt.examID?.groupID?.subject) || "General Practice";
         const totalQ = attempt.examID?.numOfQuestion || attempt.answers.length;
         const percentage = totalQ > 0 ? Math.round((attempt.totalScore / totalQ) * 100) : 0;
 

@@ -380,3 +380,54 @@ export const toggleKeepForever = async (req, res, next) => {
     return next(error);
   }
 };
+
+export const updateExam = async (req, res, next) => {
+  try {
+    const { examId } = req.params;
+    const { title, durationMinutes, openingAt, closingAt, groupID } = req.body;
+    const teacherId = req.user._id;
+
+    const exam = await ExamModel.findOne({ _id: examId, teacherID: teacherId });
+    if (!exam) return res.status(404).json({ error: "Exam Not Found" });
+
+    if (title) exam.title = title;
+    if (durationMinutes !== undefined) exam.durationMinutes = durationMinutes;
+    if (openingAt !== undefined) exam.openingAt = openingAt;
+    if (closingAt !== undefined) exam.closingAt = closingAt;
+    if (groupID !== undefined) {
+      exam.groupID = groupID ? [groupID] : [];
+    }
+
+    await exam.save();
+
+    const populatedExam = await ExamModel.findById(exam._id).populate("groupID", "groupName subject");
+
+    return res.status(200).json({
+      success: true,
+      message: "Exam Updated Successfully",
+      data: populatedExam,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const deleteExam = async (req, res, next) => {
+  try {
+    const { examId } = req.params;
+    const teacherId = req.user._id;
+
+    const exam = await ExamModel.findOneAndDelete({ _id: examId, teacherID: teacherId });
+    if (!exam) return res.status(404).json({ error: "Exam Not Found" });
+
+    await QuestionModel.deleteMany({ examID: examId });
+    await PDFChunk.deleteMany({ exam_id: examId });
+
+    return res.status(200).json({
+      success: true,
+      message: "Exam Deleted Successfully",
+    });
+  } catch (error) {
+    return next(error);
+  }
+};

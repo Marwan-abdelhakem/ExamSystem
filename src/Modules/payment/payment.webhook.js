@@ -33,6 +33,7 @@ router.post('/', express.raw({ type: 'application/json' }), async (req, res) => 
           if (user.subscription_type === 'free') {
             user.subscription_credits = (user.subscription_credits || 0) + creditsToAdd;
           } else {
+            // Switch to Lite or renew Lite: reset expiring credits to 150 (they do not roll over to permanent pool)
             user.subscription_credits = creditsToAdd;
           }
           user.subscription_type = 'lite';
@@ -44,6 +45,13 @@ router.post('/', express.raw({ type: 'application/json' }), async (req, res) => 
         else if (priceId === process.env.STRIPE_STUDENT_PREMIUM_PRICE_ID) {
           const creditsToAdd = 500;
           user.purchased_credits = (user.purchased_credits || 0) + creditsToAdd;
+          
+          if (user.subscription_type === 'premium') {
+            // On renewal of Premium, ensure expiring subscription_credits is 0
+            user.subscription_credits = 0;
+          }
+          // On switch from Lite to Premium, user.subscription_credits is left as is so the leftovers can still be used until they expire.
+
           user.subscription_type = 'premium';
           user.stripe_subscription_id = subscriptionId;
           user.grace_period_ends_at = null;

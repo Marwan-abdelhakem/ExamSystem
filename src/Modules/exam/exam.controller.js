@@ -7,6 +7,7 @@ import {
   generateExamValidation,
   generateExamManuallyValidation,
   publishAIExamValidation,
+  updateExamValidation,
 } from "./exam.validation.js";
 import {
   generateExam,
@@ -17,6 +18,8 @@ import {
   downloadExamPDF,
   updateExamStatus,
   toggleKeepForever,
+  updateExam,
+  deleteExam,
 } from "./exam.service.js";
 import { checkPlanUploadLimits } from "../../Middelwares/checkPlanUploadLimits.middleware.js";
 
@@ -56,5 +59,7 @@ router.get("/myExams", authentication, getMyExams);
 router.patch("/:examId/status", authentication, updateExamStatus);
 router.patch("/:examId/toggle-keep-forever", authentication, toggleKeepForever);
 router.get("/:examId/download-pdf", authentication, downloadExamPDF);
+router.patch("/:examId", authentication, validation(updateExamValidation), updateExam);
+router.delete("/:examId", authentication, deleteExam);
 
 export default router;

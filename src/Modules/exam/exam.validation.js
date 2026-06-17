@@ -79,3 +79,11 @@ export const QuestionSchema = z.object({
 export const ExamSchema = z.object({
     questions: z.array(QuestionSchema).min(1),
 });
+
+export const updateExamValidation = Joi.object({
+    title: Joi.string().optional(),
+    openingAt: Joi.number().optional(),
+    closingAt: Joi.number().optional(),
+    durationMinutes: Joi.number().min(1).optional(),
+    groupID: Joi.string().hex().length(24).optional().allow(null, ""),
+});
