@@ -77,7 +77,7 @@ router.post('/', express.raw({ type: 'application/json' }), async (req, res) => 
         }
 
         await user.save();
-        const invoiceUrl = invoice.invoice_pdf || invoice.hosted_invoice_url || "https://dashboard.stripe.com";
+        const invoiceUrl = invoice.invoice_pdf || invoice.hosted_invoice_url || "https://stripe.com";
         const amountPaid = (invoice.amount_paid / 100).toFixed(2);
         await sendInvoiceEmail(user.email, invoiceUrl, planLabel, amountPaid);
       }
@@ -123,7 +123,7 @@ router.post('/', express.raw({ type: 'application/json' }), async (req, res) => 
           await user.save();
 
           // Send Invoice / Receipt Email
-          const receiptUrl = paymentIntent.charges?.data?.[0]?.receipt_url || "https://dashboard.stripe.com";
+          const receiptUrl = paymentIntent.charges?.data?.[0]?.receipt_url || "https://stripe.com";
           const amountPaid = (paymentIntent.amount / 100).toFixed(2);
           const productName = type === 'teacher_plan' 
             ? `Teacher ${planName.charAt(0).toUpperCase() + planName.slice(1)} Plan` 

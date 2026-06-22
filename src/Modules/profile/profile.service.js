@@ -185,19 +185,29 @@ export const updateCreditsAfterCheckout = async (req, res, next) => {
 
         // Send confirmation/invoice email as a fallback if planName/planPrice are provided
         if (planName && planPrice !== undefined) {
-            let invoiceUrl = "https://dashboard.stripe.com/payments";
+            let invoiceUrl = "https://stripe.com";
             try {
                 if (user.stripe_customer_id) {
+                    // Try to get latest invoice (for subscriptions)
                     const invoices = await stripe.invoices.list({
                         customer: user.stripe_customer_id,
                         limit: 1
                     });
                     if (invoices.data && invoices.data.length > 0) {
                         invoiceUrl = invoices.data[0].invoice_pdf || invoices.data[0].hosted_invoice_url || invoiceUrl;
+                    } else {
+                        // Try to get latest charge receipt (for one-time payments/addons)
+                        const charges = await stripe.charges.list({
+                            customer: user.stripe_customer_id,
+                            limit: 1
+                        });
+                        if (charges.data && charges.data.length > 0) {
+                            invoiceUrl = charges.data[0].receipt_url || invoiceUrl;
+                        }
                     }
                 }
             } catch (stripeErr) {
-                console.error("❌ Failed to retrieve Stripe invoice PDF:", stripeErr.message);
+                console.error("❌ Failed to retrieve Stripe invoice/receipt PDF:", stripeErr.message);
             }
             await sendInvoiceEmail(user.email, invoiceUrl, planName, planPrice);
         }

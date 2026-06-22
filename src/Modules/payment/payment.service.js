@@ -89,9 +89,26 @@ export const createAddonIntent = async (req, res) => {
   const { totalCostInDollars, amountOfCredits, userId, planName } = req.body;
 
   try {
+    const user = await UserModel.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    let stripeCustomerId = user.stripe_customer_id;
+    if (!stripeCustomerId) {
+      const customer = await stripe.customers.create({
+        email: user.email,
+        metadata: { userId: userId.toString() }
+      });
+      stripeCustomerId = customer.id;
+      user.stripe_customer_id = stripeCustomerId;
+      await user.save();
+    }
+
     const paymentIntent = await stripe.paymentIntents.create({
       amount: Math.round(totalCostInDollars * 100), 
       currency: 'usd',
+      customer: stripeCustomerId,
       metadata: {
         userId: userId.toString(),
         type: planName ? 'teacher_plan' : 'addon_credits', 

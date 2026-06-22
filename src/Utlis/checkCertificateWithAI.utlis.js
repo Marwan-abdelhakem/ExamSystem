@@ -1,8 +1,17 @@
-import { ChatOpenAI } from '@langchain/openai';
+import { ChatGroq } from '@langchain/groq';
 import { HumanMessage } from '@langchain/core/messages';
-import { llm } from "../Modules/exam/exam.pipeline.js"
+
+let visionLlm;
 
 export const checkCertificateWithAI = async (fileBuffer, mimeType) => {
+    if (!visionLlm) {
+        visionLlm = new ChatGroq({
+            model: "meta-llama/llama-4-scout-17b-16e-instruct",
+            temperature: 0.1,
+            apiKey: process.env.GROQ_API_KEY,
+        });
+    }
+
     try {
         const base64Image = fileBuffer.toString("base64");
 
@@ -24,7 +33,7 @@ Respond with JSON format only (no markdown, no \`\`\`json):
 { "isCertificate": false } -> If it is a certificate of appreciation, training, lacks a stamp, or is any other document.
 `;
 
-        const response = await llm.invoke([
+        const response = await visionLlm.invoke([
             new HumanMessage({
                 content: [
                     { type: "text", text: prompt },
