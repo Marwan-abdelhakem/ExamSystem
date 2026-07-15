@@ -13,6 +13,7 @@ import profileRouter from "./Modules/profile/profile.controller.js"
 import studentDashboardRouter from "./Modules/studentDashboard/studentDashboard.controller.js"
 import paymentWebhook from "./Modules/payment/payment.webhook.js"
 import paymentRouter from "./Modules/payment/payment.controller.js"
+import chatRouter from "./Modules/chat/chat.controller.js"
 import cors from "cors"
 
 
@@ -53,6 +54,7 @@ const bootStrap = async (app, express) => {
     app.use("/api/profile", profileRouter)
     app.use("/api/student-dashboard", studentDashboardRouter)
     app.use("/api/payments", paymentRouter)
+    app.use("/api/chat", chatRouter)
 
     app.get("/", (req, res) => {
         return res.status(200).json({

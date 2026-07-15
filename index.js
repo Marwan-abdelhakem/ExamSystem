@@ -1,17 +1,24 @@
 import dotenv from "dotenv";
-// dotenv.config();
 dotenv.config({ path: "./src/config/.env" });
 
-import express from 'express'
-import bootStrap from "./src/app.controller.js"
+import express from "express";
+import http from "http";
 
-const app = express()
-// const port = process.env.PORT
-const port = process.env.PORT || 3000
+import bootStrap from "./src/app.controller.js";
+import initializeSocket from "./src/Modules/socket/index.js";
 
-await bootStrap(app, express)
+const app = express();
 
+await bootStrap(app, express);
 
-app.listen(port, () => console.log(`Server app listening on port ${port}!`))
+const server = http.createServer(app);
+
+initializeSocket(server);
+
+const port = process.env.PORT || 3000;
+
+server.listen(port, () => {
+  console.log(`Server running on ${port}`);
+});
 
 export default app;
